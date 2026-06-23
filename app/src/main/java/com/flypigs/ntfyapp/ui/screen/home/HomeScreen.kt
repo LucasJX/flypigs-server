@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -20,7 +19,8 @@ import com.flypigs.ntfyapp.ui.component.MessageCard
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToDetail: (String) -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
@@ -34,9 +34,6 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = { viewModel.toggleSearch() }) {
                         Icon(Icons.Default.Search, "搜索")
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, "设置")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -114,7 +111,7 @@ fun HomeScreen(
                             message = message,
                             onClick = {
                                 viewModel.markAsRead(message.id)
-                                // TODO: Navigate to detail
+                                onNavigateToDetail(message.id)
                             },
                             onLongClick = {
                                 // TODO: Show context menu

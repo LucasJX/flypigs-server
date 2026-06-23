@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.flypigs.ntfyapp.data.local.AppDatabase
 import com.flypigs.ntfyapp.data.local.dao.MessageDao
+import com.flypigs.ntfyapp.data.local.dao.ServerDao
+import com.flypigs.ntfyapp.data.local.dao.TopicDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,12 +24,24 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "ntfy_database"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
     @Singleton
     fun provideMessageDao(database: AppDatabase): MessageDao {
         return database.messageDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideServerDao(database: AppDatabase): ServerDao {
+        return database.serverDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTopicDao(database: AppDatabase): TopicDao {
+        return database.topicDao()
     }
 }

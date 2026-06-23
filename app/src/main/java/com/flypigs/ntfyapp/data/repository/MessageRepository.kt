@@ -21,6 +21,8 @@ class MessageRepository @Inject constructor(
     fun searchMessages(query: String): Flow<List<MessageEntity>> =
         messageDao.searchMessages(query)
 
+    suspend fun getMessageById(id: String): MessageEntity? = messageDao.getMessageById(id)
+
     suspend fun insertMessage(ntfyMessage: NtfyMessage): MessageEntity {
         val category = classifyMessage(ntfyMessage.tags)
         val entity = MessageEntity(
@@ -54,6 +56,12 @@ class MessageRepository @Inject constructor(
 
     fun getTopicStatsSince(startTime: Long) =
         messageDao.getTopicStatsSince(startTime)
+
+    fun getCategoryStats() = messageDao.getCategoryStats()
+
+    fun getTopicStats() = messageDao.getTopicStats()
+
+    fun getDailyStats(since: Long) = messageDao.getDailyStats(since)
 
     /**
      * 根据 tags 自动分类消息

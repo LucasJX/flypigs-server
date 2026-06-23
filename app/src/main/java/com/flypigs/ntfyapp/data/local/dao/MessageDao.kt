@@ -13,6 +13,9 @@ interface MessageDao {
     @Query("SELECT * FROM messages ORDER BY timestamp DESC")
     fun getAllMessages(): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM messages WHERE id = :id")
+    suspend fun getMessageById(id: String): MessageEntity?
+
     @Query("SELECT * FROM messages WHERE category = :category ORDER BY timestamp DESC")
     fun getMessagesByCategory(category: String): Flow<List<MessageEntity>>
 
@@ -42,6 +45,15 @@ interface MessageDao {
 
     @Query("SELECT topic, COUNT(*) as count FROM messages WHERE timestamp >= :startTime GROUP BY topic")
     fun getTopicStatsSince(startTime: Long): Flow<List<TopicCount>>
+
+    @Query("SELECT category, COUNT(*) as count FROM messages GROUP BY category")
+    fun getCategoryStats(): Flow<List<CategoryCount>>
+
+    @Query("SELECT topic, COUNT(*) as count FROM messages GROUP BY topic ORDER BY count DESC")
+    fun getTopicStats(): Flow<List<TopicCount>>
+
+    @Query("SELECT date(timestamp / 1000, 'unixepoch') as date, COUNT(*) as count FROM messages WHERE timestamp >= :since GROUP BY date ORDER BY date")
+    fun getDailyStats(since: Long): Flow<List<DailyCount>>
 }
 
 data class CategoryCount(
@@ -51,5 +63,10 @@ data class CategoryCount(
 
 data class TopicCount(
     val topic: String,
+    val count: Int
+)
+
+data class DailyCount(
+    val date: String,
     val count: Int
 )

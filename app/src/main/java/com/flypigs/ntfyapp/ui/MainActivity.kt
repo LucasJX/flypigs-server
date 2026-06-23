@@ -8,12 +8,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.rememberNavController
 import com.flypigs.ntfyapp.service.NtfyService
-import com.flypigs.ntfyapp.ui.screen.home.HomeScreen
+import com.flypigs.ntfyapp.ui.navigation.BottomNavBar
+import com.flypigs.ntfyapp.ui.navigation.NtfyNavGraph
 import com.flypigs.ntfyapp.ui.theme.NtfyAppTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -48,11 +52,18 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             NtfyAppTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    HomeScreen()
+                val navController = rememberNavController()
+                Scaffold(
+                    bottomBar = { BottomNavBar(navController) }
+                ) { innerPadding ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        NtfyNavGraph(navController)
+                    }
                 }
             }
         }
