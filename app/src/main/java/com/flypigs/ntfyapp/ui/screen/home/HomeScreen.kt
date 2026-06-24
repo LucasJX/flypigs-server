@@ -18,7 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flypigs.ntfyapp.domain.model.MessageCategory
-import com.flypigs.ntfyapp.ui.LocalDrawerContent
+import com.flypigs.ntfyapp.ui.LocalDrawerState
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import com.flypigs.ntfyapp.ui.component.MessageCard
 import kotlinx.coroutines.launch
@@ -30,7 +30,7 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
-    drawerState: DrawerState = rememberDrawerState(DrawerValue.Closed),
+    onOpenDrawer: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToDetail: (String) -> Unit = {}
 ) {
@@ -47,25 +47,29 @@ fun HomeScreen(
     val eventSummary by viewModel.eventSummary.collectAsState()
 
     val scope = rememberCoroutineScope()
-    val drawerContentState = LocalDrawerContent.current
+    val drawerHolder = LocalDrawerState.current
 
     // 写入 drawer 内容到 CompositionLocal（跨路由共享）
     DisposableEffect(Unit) {
-        drawerContentState.value = @Composable {
-            DrawerContent(
-                topics = topics,
-                totalCount = totalCount,
-                topicUnreadCounts = topicUnreadCounts,
-                selectedTopic = selectedTopic,
-                selectedCategory = selectedCategory,
-                selectedTab = selectedTab,
-                onSelectTopic = { topic ->
-                    viewModel.selectTopic(topic)
-                    scope.launch { drawerState.close() }
-                }
-            )
+        drawerHolder.value = drawerHolder.value.copy(
+            content = @Composable {
+                DrawerContent(
+                    topics = topics,
+                    totalCount = totalCount,
+                    topicUnreadCounts = topicUnreadCounts,
+                    selectedTopic = selectedTopic,
+                    selectedCategory = selectedCategory,
+                    selectedTab = selectedTab,
+                    onSelectTopic = { topic ->
+                        viewModel.selectTopic(topic)
+                        drawerHolder.value.closeDrawer()
+                    }
+                )
+            }
+        )
+        onDispose {
+            drawerHolder.value = drawerHolder.value.copy(content = {})
         }
-        onDispose { drawerContentState.value = {} }
     }
 
     Scaffold(
@@ -83,7 +87,7 @@ fun HomeScreen(
                 title = "事件中心",
                 subtitle = subtitle,
                 navigationIcon = {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                    IconButton(onClick = onOpenDrawer) {
                         Icon(Icons.Default.Menu, contentDescription = "菜单")
                     }
                 },

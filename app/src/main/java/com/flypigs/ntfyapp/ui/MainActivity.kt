@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+@OptIn(ExperimentalMaterial3Api::class)
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -91,24 +93,26 @@ class MainActivity : ComponentActivity() {
                 val mainScreens = listOf("home", "stats", "settings")
                 val showBottomBar = currentRoute in mainScreens
 
+                val drawerHolder = LocalDrawerState.current
                 val drawerState = rememberDrawerState(DrawerValue.Closed)
-                val drawerContentState = LocalDrawerContent.current
+                val scope = rememberCoroutineScope()
 
-                // 结构: ModalNavigationDrawer > Scaffold(bottomBar) > NavHost
-                // - drawer sheet fillMaxHeight 覆盖全屏（含 Scaffold 的 bottomBar）
-                // - Scaffold 处理系统导航栏 insets，BottomNavBar 不自行处理
-                // - scrim 覆盖整个 Scaffold 内容
+                drawerHolder.value = drawerHolder.value.copy(
+                    closeDrawer = { scope.launch { drawerState.close() } }
+                )
+
+                // 还原版本：ModalNavigationDrawer + 纯 Box drawer 容器
+                // 底部栏覆盖已确认 OK
                 ModalNavigationDrawer(
                     drawerState = drawerState,
                     drawerContent = {
-                        ModalDrawerSheet(
+                        Box(
                             modifier = Modifier
                                 .width(300.dp)
-                                .fillMaxHeight(),
-                            drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            windowInsets = WindowInsets(0)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
                         ) {
-                            drawerContentState.value()
+                            drawerHolder.value.content()
                         }
                     }
                 ) {
@@ -123,7 +127,7 @@ class MainActivity : ComponentActivity() {
                     ) { innerPadding ->
                         NtfyNavGraph(
                             navController = navController,
-                            drawerState = drawerState,
+                            onOpenDrawer = { scope.launch { drawerState.open() } },
                             modifier = Modifier.padding(innerPadding)
                         )
                     }

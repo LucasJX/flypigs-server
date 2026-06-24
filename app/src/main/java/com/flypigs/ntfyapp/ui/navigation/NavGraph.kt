@@ -1,6 +1,5 @@
 package com.flypigs.ntfyapp.ui.navigation
 
-import androidx.compose.material3.DrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -17,7 +16,7 @@ import com.flypigs.ntfyapp.ui.theme.*
 @Composable
 fun NtfyNavGraph(
     navController: NavHostController,
-    drawerState: DrawerState,
+    onOpenDrawer: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -31,7 +30,7 @@ fun NtfyNavGraph(
     ) {
         composable("home") {
             HomeScreen(
-                drawerState = drawerState,
+                onOpenDrawer = onOpenDrawer,
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToDetail = { id -> navController.navigate("detail/$id") }
             )

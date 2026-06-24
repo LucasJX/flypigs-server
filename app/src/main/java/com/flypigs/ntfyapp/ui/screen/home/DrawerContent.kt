@@ -12,10 +12,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
- * 侧边栏内容 — 独立 composable，供 MainActivity 的 ModalNavigationDrawer 使用
+ * 侧边栏内容 — M3 标准布局
  *
- * 注意：不要在这里包裹 ModalDrawerSheet，因为 MainActivity 已经提供了外层 sheet 容器。
- * 这里只负责内容布局，insets 由各区域自行处理。
+ * 紫色头部延伸到状态栏后面（背景在最外层 Box，padding 在内容层）
+ * 内容区域用 NavigationDrawerItem（M3 原生组件）
  */
 @Composable
 fun DrawerContent(
@@ -28,113 +28,125 @@ fun DrawerContent(
     onSelectTopic: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    // 最外层 Box：紫色背景延伸到状态栏后面
+    Box(
         modifier = modifier
             .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(MaterialTheme.colorScheme.primary)
     ) {
-        // ── 头部区域：背景色覆盖状态栏，内容用 windowInsetsPadding 避开 ──
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primary)
-                .windowInsetsPadding(WindowInsets.statusBars),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.fillMaxHeight()
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(vertical = 24.dp)
+            // ── 头部区域：padding 避开状态栏，紫色背景已由外层 Box 提供 ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.statusBars),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Default.Notifications,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(40.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Flypigs EventCenter",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "统一管理事件通知",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // ── 全部消息 ──
-        NavigationDrawerItem(
-            label = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(vertical = 24.dp)
                 ) {
-                    Text("全部消息", fontWeight = FontWeight.Medium)
+                    Icon(
+                        Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "$totalCount",
+                        "Flypigs EventCenter",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "统一管理事件通知",
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+
+            // ── 内容区域：surfaceContainer 背景 ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── 全部消息 ──
+                NavigationDrawerItem(
+                    label = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("全部消息", fontWeight = FontWeight.Medium)
+                            Text(
+                                "$totalCount",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    icon = { Icon(Icons.Default.Inbox, contentDescription = null) },
+                    selected = selectedTopic == null && selectedCategory == null && selectedTab == MessageTab.ALL,
+                    onClick = { onSelectTopic(null) },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // ── Topic 列表 ──
+                topics.forEach { topic ->
+                    val isTopicSelected = selectedTopic == topic.name
+                    val topicUnread = topicUnreadCounts[topic.name] ?: 0
+
+                    NavigationDrawerItem(
+                        label = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    topic.displayName,
+                                    fontWeight = if (isTopicSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                                if (topicUnread > 0) {
+                                    Badge { Text("$topicUnread") }
+                                }
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Topic, contentDescription = null) },
+                        selected = isTopicSelected,
+                        onClick = { onSelectTopic(if (isTopicSelected) null else topic.name) },
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // ── 底部版本：避开系统导航栏 ──
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "v1.0.0",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            },
-            icon = { Icon(Icons.Default.Inbox, contentDescription = null) },
-            selected = selectedTopic == null && selectedCategory == null && selectedTab == MessageTab.ALL,
-            onClick = { onSelectTopic(null) },
-            modifier = Modifier.padding(horizontal = 12.dp)
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // ── Topic 列表 ──
-        topics.forEach { topic ->
-            val isTopicSelected = selectedTopic == topic.name
-            val topicUnread = topicUnreadCounts[topic.name] ?: 0
-
-            NavigationDrawerItem(
-                label = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            topic.displayName,
-                            fontWeight = if (isTopicSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                        if (topicUnread > 0) {
-                            Badge { Text("$topicUnread") }
-                        }
-                    }
-                },
-                icon = { Icon(Icons.Default.Topic, contentDescription = null) },
-                selected = isTopicSelected,
-                onClick = { onSelectTopic(if (isTopicSelected) null else topic.name) },
-                modifier = Modifier.padding(horizontal = 12.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // ── 底部版本：背景覆盖导航栏，内容用 windowInsetsPadding 避开 ──
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                "v1.0.0",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            }
         }
     }
 }
