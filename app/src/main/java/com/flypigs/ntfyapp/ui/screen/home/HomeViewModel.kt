@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class MessageTab { ALL, UNREAD, STARRED }
+enum class MessageTab { ALL, UNREAD }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -59,7 +59,6 @@ class HomeViewModel @Inject constructor(
         when {
             q.isNotBlank() -> repository.searchMessages(q)
             tb == MessageTab.UNREAD -> repository.getUnreadMessages()
-            tb == MessageTab.STARRED -> repository.getStarredMessages()
             t != null && c != null -> repository.getMessagesByTopicAndCategory(t, c)
             t != null -> repository.getMessagesByTopic(t)
             c != null -> repository.getMessagesByCategory(c)
@@ -131,9 +130,9 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun toggleStarred(id: String, isStarred: Boolean) {
+    fun markAllAsRead() {
         viewModelScope.launch {
-            repository.toggleStarred(id, isStarred)
+            repository.markAllAsRead()
         }
     }
 
@@ -147,7 +146,6 @@ class HomeViewModel @Inject constructor(
     data class EventSummary(
         val todayCount: Int = 0,
         val unreadCount: Int = 0,
-        val starredCount: Int = 0,
         val latestMessage: MessageEntity? = null
     )
 
@@ -158,7 +156,6 @@ class HomeViewModel @Inject constructor(
             EventSummary(
                 todayCount = messages.count { it.timestamp >= todayStart },
                 unreadCount = messages.count { !it.isRead },
-                starredCount = messages.count { it.isStarred },
                 latestMessage = messages.maxByOrNull { it.timestamp }
             )
         }

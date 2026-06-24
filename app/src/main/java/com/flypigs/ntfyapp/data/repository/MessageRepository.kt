@@ -42,6 +42,8 @@ class MessageRepository @Inject constructor(
 
     suspend fun markAsRead(id: String) = messageDao.markAsRead(id)
 
+    suspend fun markAllAsRead() = messageDao.markAllAsRead()
+
     suspend fun deleteMessage(id: String) = messageDao.deleteMessage(id)
 
     suspend fun deleteAllMessages() = messageDao.deleteAllMessages()
@@ -70,8 +72,6 @@ class MessageRepository @Inject constructor(
 
     fun getUnreadMessages() = messageDao.getUnreadMessages()
 
-    fun getStarredMessages() = messageDao.getStarredMessages()
-
     fun getUnreadCount() = messageDao.getUnreadCount()
 
     fun getCategoryStatsByTopic(topic: String) = messageDao.getCategoryStatsByTopic(topic)
@@ -79,8 +79,6 @@ class MessageRepository @Inject constructor(
     fun getMessageCountByTopic(topic: String) = messageDao.getMessageCountByTopic(topic)
 
     fun getUnreadCountByTopic() = messageDao.getUnreadCountByTopic()
-
-    suspend fun toggleStarred(id: String, starred: Boolean) = messageDao.toggleStarred(id, starred)
 
     /**
      * 根据 tags 自动分类消息

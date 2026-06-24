@@ -44,7 +44,6 @@ fun HomeScreen(
     val totalCount by viewModel.totalCount.collectAsState()
     val unreadCount by viewModel.unreadCount.collectAsState()
     val topicUnreadCounts by viewModel.topicUnreadCounts.collectAsState()
-    val eventSummary by viewModel.eventSummary.collectAsState()
 
     val scope = rememberCoroutineScope()
     val drawerHolder = LocalDrawerState.current
@@ -92,6 +91,11 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    if (unreadCount > 0) {
+                        IconButton(onClick = { viewModel.markAllAsRead() }) {
+                            Icon(Icons.Default.DoneAll, contentDescription = "全部已读")
+                        }
+                    }
                     IconButton(onClick = { viewModel.toggleSearch() }) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")
                     }
@@ -104,25 +108,6 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── 事件摘要卡片 ──
-            AnimatedVisibility(
-                visible = !isSearching && selectedTab == MessageTab.ALL && selectedTopic == null,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 10 })
-            ) {
-                EventSummaryCard(
-                    todayCount = eventSummary.todayCount,
-                    unreadCount = eventSummary.unreadCount,
-                    starredCount = eventSummary.starredCount,
-                    latestMessage = eventSummary.latestMessage?.let {
-                        LatestMessage(
-                            title = it.title ?: it.topic,
-                            time = formatSummaryTime(it.timestamp)
-                        )
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-
             // ── Tab 栏 ──
             TabRow(
                 selectedTabIndex = selectedTab.ordinal,
@@ -146,11 +131,6 @@ fun HomeScreen(
                             }
                         }
                     }
-                )
-                Tab(
-                    selected = selectedTab == MessageTab.STARRED,
-                    onClick = { viewModel.selectTab(MessageTab.STARRED) },
-                    text = { Text("加星") }
                 )
             }
 
@@ -238,9 +218,6 @@ fun HomeScreen(
                                 onClick = {
                                     viewModel.markAsRead(message.id)
                                     onNavigateToDetail(message.id)
-                                },
-                                onLongClick = {
-                                    viewModel.toggleStarred(message.id, !message.isStarred)
                                 }
                             )
                         }
@@ -248,151 +225,6 @@ fun HomeScreen(
                 }
             }
         }
-    }
-}
-
-// ── 事件摘要卡片 ──────────────────────────────
-
-data class LatestMessage(
-    val title: String,
-    val time: String
-)
-
-@Composable
-private fun EventSummaryCard(
-    todayCount: Int,
-    unreadCount: Int,
-    starredCount: Int,
-    latestMessage: LatestMessage?,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        ),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // 标题行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "今日概览",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Icon(
-                    Icons.Default.Analytics,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // 统计行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                SummaryItem(
-                    count = todayCount,
-                    label = "今日",
-                    icon = Icons.Default.Today,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                SummaryItem(
-                    count = unreadCount,
-                    label = "未读",
-                    icon = Icons.Default.MarkEmailUnread,
-                    tint = MaterialTheme.colorScheme.error
-                )
-                SummaryItem(
-                    count = starredCount,
-                    label = "加星",
-                    icon = Icons.Default.Star,
-                    tint = MaterialTheme.colorScheme.tertiary
-                )
-            }
-
-            // 最新消息
-            if (latestMessage != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Schedule,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "最新: ",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        latestMessage.title,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        latestMessage.time,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryItem(
-    count: Int,
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: androidx.compose.ui.graphics.Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = tint
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "$count",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -417,7 +249,6 @@ private fun EmptyState(
                 imageVector = when {
                     isSearching -> Icons.Default.SearchOff
                     tab == MessageTab.UNREAD -> Icons.Default.MarkEmailRead
-                    tab == MessageTab.STARRED -> Icons.Default.StarOutline
                     else -> Icons.Default.Inbox
                 },
                 contentDescription = null,
@@ -432,7 +263,6 @@ private fun EmptyState(
                 text = when {
                     isSearching -> "未找到匹配的消息"
                     tab == MessageTab.UNREAD -> "没有未读消息"
-                    tab == MessageTab.STARRED -> "没有加星消息"
                     else -> "暂无事件"
                 },
                 style = MaterialTheme.typography.titleLarge,
@@ -448,7 +278,6 @@ private fun EmptyState(
                 text = when {
                     isSearching -> "尝试使用不同的关键词搜索"
                     tab == MessageTab.UNREAD -> "所有消息都已读过"
-                    tab == MessageTab.STARRED -> "长按消息可以添加星标"
                     else -> "当事件源产生新的事件时，将在这里显示"
                 },
                 style = MaterialTheme.typography.bodyMedium,
