@@ -1,28 +1,22 @@
 package com.flypigs.ntfyapp.ui
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.SystemBarStyle
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.flypigs.ntfyapp.data.local.dao.ServerDao
 import com.flypigs.ntfyapp.data.local.dao.TopicDao
@@ -57,12 +51,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 请求通知权限 (Android 13+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED) {
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
                 requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
                 startNtfyService()
@@ -73,13 +67,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val prefs = remember { getSharedPreferences("ntfy_prefs", MODE_PRIVATE) }
-            // 同步读取初始值，避免闪烁
             var themeMode by remember {
                 val saved = prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM"
                 mutableStateOf(try { ThemeMode.valueOf(saved) } catch (_: Exception) { ThemeMode.SYSTEM })
             }
 
-            // DisposableEffect 保持 listener 强引用，防 GC
             DisposableEffect(prefs) {
                 val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
                     if (key == "theme_mode") {
@@ -95,22 +87,49 @@ class MainActivity : ComponentActivity() {
 
             NtfyAppTheme(themeMode = themeMode) {
                 val navController = rememberNavController()
-                Scaffold(
-                    bottomBar = { BottomNavBar(navController) }
-                ) { innerPadding ->
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        NtfyNavGraph(navController)
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+                val mainScreens = listOf("home", "stats", "settings")
+                val showBottomBar = currentRoute in mainScreens
+
+                val drawerState = rememberDrawerState(DrawerValue.Closed)
+                val drawerContentState = LocalDrawerContent.current
+
+                // ModalNavigationDrawer 在最外层，scrim 覆盖全部内容（含 bottomBar）
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet(
+                            modifier = Modifier
+                                .width(300.dp)
+                                .fillMaxHeight(),
+                            drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            windowInsets = WindowInsets(0)
+                        ) {
+                            drawerContentState.value()
+                        }
+                    }
+                ) {
+                    // 直接用 Scaffold，不用额外 Surface 包裹
+                    // Scaffold 的 containerColor 用 background 色，让 scrim 能正确覆盖
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        bottomBar = {
+                            if (showBottomBar) {
+                                BottomNavBar(navController)
+                            }
+                        }
+                    ) { innerPadding ->
+                        NtfyNavGraph(
+                            navController = navController,
+                            drawerState = drawerState,
+                            modifier = Modifier.padding(innerPadding)
+                        )
                     }
                 }
             }
         }
     }
-
 
     private fun startNtfyService() {
         lifecycleScope.launch {

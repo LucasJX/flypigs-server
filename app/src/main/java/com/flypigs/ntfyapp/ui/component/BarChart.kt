@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.data.local.dao.TopicCount
 
@@ -37,6 +38,7 @@ fun BarChart(
     }
 
     val maxCount = data.maxOf { it.count }.toFloat().coerceAtLeast(1f)
+    val barCornerRadius = with(LocalDensity.current) { 4.dp.toPx() }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -67,7 +69,7 @@ fun BarChart(
                         color = color,
                         topLeft = Offset.Zero,
                         size = Size(barWidth, size.height),
-                        cornerRadius = CornerRadius(4f, 4f)
+                        cornerRadius = CornerRadius(barCornerRadius, barCornerRadius)
                     )
                 }
 

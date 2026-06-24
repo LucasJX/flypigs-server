@@ -14,7 +14,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.flypigs.ntfyapp.data.local.dao.DailyCount
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -121,7 +120,6 @@ fun LineChart(
                     Text(
                         text = formatDateLabel(stat.date),
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.outline
                     )
                 }

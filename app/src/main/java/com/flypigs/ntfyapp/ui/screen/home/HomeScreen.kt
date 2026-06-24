@@ -4,8 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -20,6 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flypigs.ntfyapp.domain.model.MessageCategory
+import com.flypigs.ntfyapp.ui.LocalDrawerContent
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import com.flypigs.ntfyapp.ui.component.MessageCard
 import kotlinx.coroutines.launch
@@ -31,6 +30,7 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    drawerState: DrawerState = rememberDrawerState(DrawerValue.Closed),
     onNavigateToSettings: () -> Unit = {},
     onNavigateToDetail: (String) -> Unit = {}
 ) {
@@ -46,303 +46,199 @@ fun HomeScreen(
     val topicUnreadCounts by viewModel.topicUnreadCounts.collectAsState()
     val eventSummary by viewModel.eventSummary.collectAsState()
 
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val drawerContentState = LocalDrawerContent.current
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(
-                modifier = Modifier.width(300.dp),
-                drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                windowInsets = WindowInsets(0)
-            ) {
-                // ── 头部区域（画到状态栏后面，沉浸式）──
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .statusBarsPadding()
-                            .padding(vertical = 24.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Notifications,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Flypigs EventCenter",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "统一管理 OpenWrt 事件",
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+    // 写入 drawer 内容到 CompositionLocal（跨路由共享）
+    DisposableEffect(Unit) {
+        drawerContentState.value = @Composable {
+            DrawerContent(
+                topics = topics,
+                totalCount = totalCount,
+                topicUnreadCounts = topicUnreadCounts,
+                selectedTopic = selectedTopic,
+                selectedCategory = selectedCategory,
+                selectedTab = selectedTab,
+                onSelectTopic = { topic ->
+                    viewModel.selectTopic(topic)
+                    scope.launch { drawerState.close() }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // ── 全部消息 ──
-                NavigationDrawerItem(
-                    label = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("全部消息", fontWeight = FontWeight.Medium)
-                            Text(
-                                "$totalCount",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    icon = { Icon(Icons.Default.Inbox, contentDescription = null) },
-                    selected = selectedTopic == null && selectedCategory == null && selectedTab == MessageTab.ALL,
-                    onClick = {
-                        viewModel.selectTopic(null)
-                        scope.launch { drawerState.close() }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // ── Topic 列表 ──
-                topics.forEach { topic ->
-                    val isTopicSelected = selectedTopic == topic.name
-                    val topicUnread = topicUnreadCounts[topic.name] ?: 0
-
-                    NavigationDrawerItem(
-                        label = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    topic.displayName,
-                                    fontWeight = if (isTopicSelected) FontWeight.Bold else FontWeight.Medium
-                                )
-                                if (topicUnread > 0) {
-                                    Badge { Text("$topicUnread") }
-                                }
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Topic, contentDescription = null) },
-                        selected = isTopicSelected,
-                        onClick = {
-                            viewModel.selectTopic(
-                                if (isTopicSelected) null else topic.name
-                            )
-                            scope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // ── 底部版本 ──
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "v1.0.0",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            )
         }
-    ) {
-        Scaffold(
-            topBar = {
-                val subtitle = when {
-                    selectedTopic != null && selectedCategory != null ->
-                        "${"$"}{selectedCategory!!.displayName}"
-                    selectedTopic != null -> {
-                        val topicName = topics.find { it.name == selectedTopic }?.displayName ?: selectedTopic!!
-                        topicName
-                    }
-                    else -> null
+        onDispose { drawerContentState.value = {} }
+    }
+
+    Scaffold(
+        topBar = {
+            val subtitle = when {
+                selectedTopic != null && selectedCategory != null ->
+                    "${"$"}${selectedCategory!!.displayName}"
+                selectedTopic != null -> {
+                    val topicName = topics.find { it.name == selectedTopic }?.displayName ?: selectedTopic!!
+                    topicName
                 }
-                CenteredTopAppBar(
-                    title = "事件中心",
-                    subtitle = subtitle,
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "菜单")
-                        }
+                else -> null
+            }
+            CenteredTopAppBar(
+                title = "事件中心",
+                subtitle = subtitle,
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Default.Menu, contentDescription = "菜单")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.toggleSearch() }) {
+                        Icon(Icons.Default.Search, contentDescription = "搜索")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // ── 事件摘要卡片 ──
+            AnimatedVisibility(
+                visible = !isSearching && selectedTab == MessageTab.ALL && selectedTopic == null,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 10 })
+            ) {
+                EventSummaryCard(
+                    todayCount = eventSummary.todayCount,
+                    unreadCount = eventSummary.unreadCount,
+                    starredCount = eventSummary.starredCount,
+                    latestMessage = eventSummary.latestMessage?.let {
+                        LatestMessage(
+                            title = it.title ?: it.topic,
+                            time = formatSummaryTime(it.timestamp)
+                        )
                     },
-                    actions = {
-                        IconButton(onClick = { viewModel.toggleSearch() }) {
-                            Icon(Icons.Default.Search, contentDescription = "搜索")
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            // ── Tab 栏 ──
+            TabRow(
+                selectedTabIndex = selectedTab.ordinal,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary
+            ) {
+                Tab(
+                    selected = selectedTab == MessageTab.ALL,
+                    onClick = { viewModel.selectTab(MessageTab.ALL) },
+                    text = { Text("全部消息") }
+                )
+                Tab(
+                    selected = selectedTab == MessageTab.UNREAD,
+                    onClick = { viewModel.selectTab(MessageTab.UNREAD) },
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("未读")
+                            if (unreadCount > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Badge { Text("$unreadCount") }
+                            }
                         }
                     }
                 )
+                Tab(
+                    selected = selectedTab == MessageTab.STARRED,
+                    onClick = { viewModel.selectTab(MessageTab.STARRED) },
+                    text = { Text("加星") }
+                )
             }
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
+
+            // 搜索栏
+            AnimatedVisibility(
+                visible = isSearching,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 4 })
             ) {
-                // ── 事件摘要卡片 ──
-                AnimatedVisibility(
-                    visible = !isSearching && selectedTab == MessageTab.ALL && selectedTopic == null,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { it / 10 })
-                ) {
-                    EventSummaryCard(
-                        todayCount = eventSummary.todayCount,
-                        unreadCount = eventSummary.unreadCount,
-                        starredCount = eventSummary.starredCount,
-                        latestMessage = eventSummary.latestMessage?.let {
-                            LatestMessage(
-                                title = it.title ?: it.topic,
-                                time = formatSummaryTime(it.timestamp)
-                            )
-                        },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.search(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    placeholder = { Text("搜索事件...") },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.medium
+                )
+            }
 
-                // ── Tab 栏 ──
-                TabRow(
-                    selectedTabIndex = selectedTab.ordinal,
+            // 分类筛选 ScrollableTabRow（仅全部消息 Tab 下显示）
+            if (selectedTab == MessageTab.ALL) {
+                ScrollableTabRow(
+                    selectedTabIndex = if (selectedCategory == null) 0 else MessageCategory.entries.indexOf(selectedCategory) + 1,
                     containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    edgePadding = 16.dp
                 ) {
                     Tab(
-                        selected = selectedTab == MessageTab.ALL,
-                        onClick = { viewModel.selectTab(MessageTab.ALL) },
-                        text = { Text("全部消息") }
+                        selected = selectedCategory == null,
+                        onClick = { viewModel.selectCategory(null) },
+                        text = { Text("全部") }
                     )
-                    Tab(
-                        selected = selectedTab == MessageTab.UNREAD,
-                        onClick = { viewModel.selectTab(MessageTab.UNREAD) },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("未读")
-                                if (unreadCount > 0) {
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Badge { Text("$unreadCount") }
-                                }
-                            }
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == MessageTab.STARRED,
-                        onClick = { viewModel.selectTab(MessageTab.STARRED) },
-                        text = { Text("加星") }
-                    )
-                }
-
-                // 搜索栏
-                AnimatedVisibility(
-                    visible = isSearching,
-                    enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 4 })
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.search(it) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        placeholder = { Text("搜索事件...") },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.medium
-                    )
-                }
-
-                // 分类筛选 ScrollableTabRow（仅全部消息 Tab 下显示）
-                if (selectedTab == MessageTab.ALL) {
-                    ScrollableTabRow(
-                        selectedTabIndex = if (selectedCategory == null) 0 else MessageCategory.entries.indexOf(selectedCategory) + 1,
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        edgePadding = 16.dp
-                    ) {
+                    MessageCategory.entries.forEach { category ->
                         Tab(
-                            selected = selectedCategory == null,
-                            onClick = { viewModel.selectCategory(null) },
-                            text = { Text("全部") }
+                            selected = selectedCategory == category,
+                            onClick = {
+                                viewModel.selectCategory(
+                                    if (selectedCategory == category) null else category
+                                )
+                            },
+                            text = { Text(category.displayName) },
+                            icon = {
+                                Icon(
+                                    imageVector = category.icon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         )
-                        MessageCategory.entries.forEach { category ->
-                            Tab(
-                                selected = selectedCategory == category,
-                                onClick = {
-                                    viewModel.selectCategory(
-                                        if (selectedCategory == category) null else category
-                                    )
-                                },
-                                text = { Text(category.displayName) },
-                                icon = {
-                                    Icon(
-                                        imageVector = category.icon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            )
-                        }
                     }
                 }
+            }
 
-                // 消息列表
-                if (messages.isEmpty()) {
-                    EmptyState(
-                        tab = selectedTab,
-                        isSearching = isSearching,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    LazyColumn {
-                        itemsIndexed(
-                            items = messages,
-                            key = { _, it -> it.id }
-                        ) { index, message ->
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = fadeIn(
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 250,
-                                        delayMillis = (index * 30).coerceAtMost(300)
-                                    )
-                                ) + slideInVertically(
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 250,
-                                        delayMillis = (index * 30).coerceAtMost(300)
-                                    ),
-                                    initialOffsetY = { it / 8 }
+            // 消息列表
+            if (messages.isEmpty()) {
+                EmptyState(
+                    tab = selectedTab,
+                    isSearching = isSearching,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                LazyColumn {
+                    itemsIndexed(
+                        items = messages,
+                        key = { _, it -> it.id }
+                    ) { index, message ->
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn(
+                                animationSpec = androidx.compose.animation.core.tween(
+                                    durationMillis = 250,
+                                    delayMillis = (index * 30).coerceAtMost(300)
                                 )
-                            ) {
-                                MessageCard(
-                                    message = message,
-                                    onClick = {
-                                        viewModel.markAsRead(message.id)
-                                        onNavigateToDetail(message.id)
-                                    },
-                                    onLongClick = {
-                                        viewModel.toggleStarred(message.id, !message.isStarred)
-                                    }
-                                )
-                            }
+                            ) + slideInVertically(
+                                animationSpec = androidx.compose.animation.core.tween(
+                                    durationMillis = 250,
+                                    delayMillis = (index * 30).coerceAtMost(300)
+                                ),
+                                initialOffsetY = { it / 8 }
+                            )
+                        ) {
+                            MessageCard(
+                                message = message,
+                                onClick = {
+                                    viewModel.markAsRead(message.id)
+                                    onNavigateToDetail(message.id)
+                                },
+                                onLongClick = {
+                                    viewModel.toggleStarred(message.id, !message.isStarred)
+                                }
+                            )
                         }
                     }
                 }
@@ -549,7 +445,7 @@ private fun EmptyState(
                     isSearching -> "尝试使用不同的关键词搜索"
                     tab == MessageTab.UNREAD -> "所有消息都已读过"
                     tab == MessageTab.STARRED -> "长按消息可以添加星标"
-                    else -> "当 OpenClash、PassWall 或系统组件\n产生新的事件时，将在这里显示"
+                    else -> "当事件源产生新的事件时，将在这里显示"
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
