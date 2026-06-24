@@ -18,7 +18,7 @@ class StatsViewModel @Inject constructor(
     private val messageRepository: MessageRepository
 ) : ViewModel() {
 
-    // Today's start timestamp
+    // Today's start timestamp (in seconds, matching ntfy timestamp format)
     private val startOfDay: Long
         get() {
             val cal = Calendar.getInstance()
@@ -26,10 +26,10 @@ class StatsViewModel @Inject constructor(
             cal.set(Calendar.MINUTE, 0)
             cal.set(Calendar.SECOND, 0)
             cal.set(Calendar.MILLISECOND, 0)
-            return cal.timeInMillis
+            return cal.timeInMillis / 1000
         }
 
-    // 7 days ago timestamp
+    // 7 days ago timestamp (in seconds)
     private val sevenDaysAgo: Long
         get() {
             val cal = Calendar.getInstance()
@@ -38,10 +38,16 @@ class StatsViewModel @Inject constructor(
             cal.set(Calendar.MINUTE, 0)
             cal.set(Calendar.SECOND, 0)
             cal.set(Calendar.MILLISECOND, 0)
-            return cal.timeInMillis
+            return cal.timeInMillis / 1000
         }
 
     val todayCount: StateFlow<Int> = messageRepository.getMessageCountSince(startOfDay)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val totalCount: StateFlow<Int> = messageRepository.getMessageCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val unreadCount: StateFlow<Int> = messageRepository.getUnreadCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val categoryStats: StateFlow<List<CategoryCount>> = messageRepository.getCategoryStats()

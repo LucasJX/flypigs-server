@@ -27,15 +27,29 @@ class SettingsViewModel @Inject constructor(
     val topics: StateFlow<List<TopicEntity>> = topicRepository.getAllTopics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addServer(url: String, name: String, token: String? = null) {
+    fun addServer(url: String, name: String, username: String? = null, password: String? = null) {
         viewModelScope.launch {
-            serverRepository.addServer(url = url, name = name, token = token)
+            serverRepository.addServer(url = url, name = name, username = username, password = password)
         }
     }
 
     fun deleteServer(id: String) {
         viewModelScope.launch {
             serverRepository.deleteServer(id)
+        }
+    }
+
+    fun updateServer(id: String, url: String, name: String, username: String? = null, password: String? = null) {
+        viewModelScope.launch {
+            serverRepository.updateServer(
+                ServerEntity(id = id, url = url, name = name, username = username, password = password)
+            )
+        }
+    }
+
+    fun testConnection(server: ServerEntity) {
+        viewModelScope.launch {
+            serverRepository.testConnection(server)
         }
     }
 
@@ -48,6 +62,14 @@ class SettingsViewModel @Inject constructor(
     fun deleteTopic(id: String) {
         viewModelScope.launch {
             topicRepository.deleteTopic(id)
+        }
+    }
+
+    fun updateTopic(id: String, serverId: String, name: String, displayName: String, isEnabled: Boolean = true) {
+        viewModelScope.launch {
+            topicRepository.updateTopic(
+                TopicEntity(id = id, serverId = serverId, name = name, displayName = displayName, isEnabled = isEnabled)
+            )
         }
     }
 

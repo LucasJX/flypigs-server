@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.google.gson.Gson
+import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -14,7 +15,8 @@ import java.util.concurrent.TimeUnit
 class NtfyWebSocket(
     private val serverUrl: String,
     private val topic: String,
-    private val token: String? = null,
+    private val username: String? = null,
+    private val password: String? = null,
     private val onMessage: (NtfyMessage) -> Unit,
     private val onConnectionChanged: ((Boolean) -> Unit)? = null
 ) {
@@ -52,8 +54,8 @@ class NtfyWebSocket(
         val requestBuilder = Request.Builder()
             .url(urlBuilder.toString())
 
-        token?.let {
-            requestBuilder.addHeader("Authorization", "Bearer $it")
+        if (!username.isNullOrBlank() && !password.isNullOrBlank()) {
+            requestBuilder.addHeader("Authorization", Credentials.basic(username, password))
         }
 
         Log.d(TAG, "Connecting to $wsUrl/$topic/ws")

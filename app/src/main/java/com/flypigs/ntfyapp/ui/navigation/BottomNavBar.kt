@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
@@ -20,8 +21,8 @@ data class BottomNavItem(
 @Composable
 fun BottomNavBar(navController: NavHostController) {
     val items = listOf(
-        BottomNavItem("home", "消息", Icons.Default.Email),
-        BottomNavItem("stats", "统计", Icons.Default.BarChart),
+        BottomNavItem("home", "事件", Icons.Default.Email),
+        BottomNavItem("stats", "分析", Icons.Default.BarChart),
         BottomNavItem("settings", "设置", Icons.Default.Settings)
     )
 

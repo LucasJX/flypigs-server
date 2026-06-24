@@ -7,7 +7,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -33,9 +32,9 @@ fun LineChart(
         return
     }
 
-    val lineColor = Color(0xFF1976D2)
-    val dotColor = Color(0xFF1976D2)
-    val gridColor = Color(0xFFE0E0E0)
+    val lineColor = MaterialTheme.colorScheme.primary
+    val dotColor = MaterialTheme.colorScheme.primary
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
     val textMeasurer = rememberTextMeasurer()
 
     Column(modifier = modifier) {
@@ -61,7 +60,19 @@ fun LineChart(
                 )
             }
 
-            if (data.size < 2) return@Canvas
+            if (data.size < 2) {
+                // Draw single dot if only one data point
+                if (data.size == 1) {
+                    val x = paddingLeft + chartWidth / 2
+                    val y = 16f + chartHeight * (1 - data[0].count / maxCount)
+                    drawCircle(
+                        color = dotColor,
+                        radius = 6f,
+                        center = Offset(x, y)
+                    )
+                }
+                return@Canvas
+            }
 
             // Line path
             val path = Path()

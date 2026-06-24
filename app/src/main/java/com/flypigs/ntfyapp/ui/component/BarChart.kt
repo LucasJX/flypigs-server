@@ -10,27 +10,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.flypigs.ntfyapp.data.local.dao.TopicCount
-
-private val barColors = listOf(
-    Color(0xFF1976D2),
-    Color(0xFF26A69A),
-    Color(0xFFF57C00),
-    Color(0xFF388E3C),
-    Color(0xFFD32F2F),
-    Color(0xFF7B1FA2),
-    Color(0xFF0097A7),
-    Color(0xFF689F38)
-)
 
 @Composable
 fun BarChart(
     data: List<TopicCount>,
     modifier: Modifier = Modifier
 ) {
+    val barColors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.error,
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.secondaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer,
+        MaterialTheme.colorScheme.errorContainer
+    )
+
     if (data.isEmpty()) {
         Box(modifier = modifier) {
             Text("暂无数据", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -54,7 +52,6 @@ fun BarChart(
                     text = stat.topic,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.width(80.dp),
-                    fontSize = 12.sp,
                     maxLines = 1
                 )
 
@@ -80,8 +77,7 @@ fun BarChart(
                 Text(
                     text = stat.count.toString(),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

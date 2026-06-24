@@ -5,18 +5,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.domain.model.MessageCategory
 import java.text.SimpleDateFormat
@@ -44,6 +42,7 @@ fun MessageCard(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
+        shape = MaterialTheme.shapes.medium, // 28dp rounded corners
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -53,32 +52,51 @@ fun MessageCard(
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             // 分类图标
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .background(
-                        color = Color(category.color).copy(alpha = 0.1f),
+                        color = category.color.copy(alpha = 0.1f),
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(category.icon, fontSize = 20.sp)
+                Icon(
+                    imageVector = category.icon,
+                    contentDescription = category.displayName,
+                    tint = category.color,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                // 标题
-                Text(
-                    text = message.title ?: message.topic,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (!message.isRead) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // 标题行
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = message.title ?: message.topic,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (!message.isRead) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (message.isStarred) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = "已加星",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
 
                 // 摘要
                 if (message.body.isNotBlank()) {
@@ -91,39 +109,62 @@ fun MessageCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // 时间和来源
-                Row {
+                // 底部行: 时间 + 来源徽章
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 时间
                     Text(
                         text = formatTime(message.timestamp),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = message.topic,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
+
+                    // 来源徽章 (Source Badge)
+                    SourceBadge(topic = message.topic)
                 }
             }
         }
     }
 }
 
+/**
+ * 来源徽章 - 显示消息来源 topic
+ * 使用 M3 surfaceContainerLow 背景 + 16dp 圆角 (Chip 规范)
+ */
+@Composable
+private fun SourceBadge(topic: String) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Text(
+            text = topic,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 private fun formatTime(timestamp: Long): String {
-    val now = System.currentTimeMillis()
+    val now = System.currentTimeMillis() / 1000
     val diff = now - timestamp
 
     return when {
-        diff < 60_000 -> "刚刚"
-        diff < 3600_000 -> "${diff / 60_000}分钟前"
-        diff < 86400_000 -> "${diff / 3600_000}小时前"
-        diff < 172800_000 -> "昨天"
+        diff < 60 -> "刚刚"
+        diff < 3600 -> "${diff / 60}分钟前"
+        diff < 86400 -> "${diff / 3600}小时前"
+        diff < 172800 -> "昨天"
         else -> {
             val sdf = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
-            sdf.format(Date(timestamp))
+            sdf.format(Date(timestamp * 1000))
         }
     }
 }

@@ -2,6 +2,8 @@ package com.flypigs.ntfyapp.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.flypigs.ntfyapp.data.local.AppDatabase
 import com.flypigs.ntfyapp.data.local.dao.MessageDao
 import com.flypigs.ntfyapp.data.local.dao.ServerDao
@@ -17,6 +19,13 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
+    // v3 → v4: 添加 isStarred 字段
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN isStarred INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -24,7 +33,10 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "ntfy_database"
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addMigrations(MIGRATION_3_4)
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides

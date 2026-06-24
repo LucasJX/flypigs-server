@@ -54,6 +54,33 @@ interface MessageDao {
 
     @Query("SELECT date(timestamp / 1000, 'unixepoch') as date, COUNT(*) as count FROM messages WHERE timestamp >= :since GROUP BY date ORDER BY date")
     fun getDailyStats(since: Long): Flow<List<DailyCount>>
+
+    @Query("SELECT * FROM messages WHERE topic = :topic ORDER BY timestamp DESC")
+    fun getMessagesByTopic(topic: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE topic = :topic AND category = :category ORDER BY timestamp DESC")
+    fun getMessagesByTopicAndCategory(topic: String, category: String): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE isRead = 0 ORDER BY timestamp DESC")
+    fun getUnreadMessages(): Flow<List<MessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE isStarred = 1 ORDER BY timestamp DESC")
+    fun getStarredMessages(): Flow<List<MessageEntity>>
+
+    @Query("SELECT COUNT(*) FROM messages WHERE isRead = 0")
+    fun getUnreadCount(): Flow<Int>
+
+    @Query("UPDATE messages SET isStarred = :starred WHERE id = :id")
+    suspend fun toggleStarred(id: String, starred: Boolean)
+
+    @Query("SELECT category, COUNT(*) as count FROM messages WHERE topic = :topic GROUP BY category")
+    fun getCategoryStatsByTopic(topic: String): Flow<List<CategoryCount>>
+
+    @Query("SELECT COUNT(*) FROM messages WHERE topic = :topic")
+    fun getMessageCountByTopic(topic: String): Flow<Int>
+
+    @Query("SELECT topic, COUNT(*) as count FROM messages WHERE isRead = 0 GROUP BY topic")
+    fun getUnreadCountByTopic(): Flow<List<TopicCount>>
 }
 
 data class CategoryCount(

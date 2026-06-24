@@ -11,7 +11,7 @@ import com.flypigs.ntfyapp.data.local.entity.TopicEntity
 
 @Database(
     entities = [MessageEntity::class, ServerEntity::class, TopicEntity::class],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

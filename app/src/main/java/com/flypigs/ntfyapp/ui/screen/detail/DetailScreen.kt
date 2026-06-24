@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
@@ -16,11 +16,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flypigs.ntfyapp.domain.model.MessageCategory
 import java.text.SimpleDateFormat
@@ -39,18 +39,13 @@ fun DetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("消息详情") },
+            CenteredTopAppBar(
+                title = "消息详情",
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                }
             )
         }
     ) { padding ->
@@ -81,9 +76,11 @@ fun DetailScreen(
             ) {
                 // Header with icon and title
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = category.icon,
-                        fontSize = 32.sp
+                    Icon(
+                        imageVector = category.icon,
+                        contentDescription = category.displayName,
+                        tint = category.color,
+                        modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
@@ -94,7 +91,12 @@ fun DetailScreen(
                 }
 
                 // Message body
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
                     Text(
                         text = msg.body,
                         style = MaterialTheme.typography.bodyLarge,
@@ -214,7 +216,7 @@ private fun MetadataRow(label: String, value: String) {
 
 private fun formatFullTime(timestamp: Long): String {
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-    return sdf.format(Date(timestamp))
+    return sdf.format(Date(timestamp * 1000))
 }
 
 private fun getPriorityText(priority: Int): String {

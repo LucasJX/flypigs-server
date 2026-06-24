@@ -1,5 +1,6 @@
 package com.flypigs.ntfyapp.service
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.IBinder
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.flypigs.ntfyapp.R
@@ -38,16 +40,18 @@ class NtfyService : Service() {
 
         const val PREF_SERVER_URL = "server_url"
         const val PREF_TOPIC = "topic"
-        const val PREF_TOKEN = "token"
+        const val PREF_USERNAME = "username"
+        const val PREF_PASSWORD = "password"
         const val DEFAULT_SERVER = "https://ntfy.sh"
         const val DEFAULT_TOPIC = "test"
 
-        fun start(context: Context, serverUrl: String, topic: String, token: String? = null) {
+        fun start(context: Context, serverUrl: String, topic: String, username: String? = null, password: String? = null) {
             val intent = Intent(context, NtfyService::class.java).apply {
                 action = ACTION_START
                 putExtra(PREF_SERVER_URL, serverUrl)
                 putExtra(PREF_TOPIC, topic)
-                putExtra(PREF_TOKEN, token)
+                putExtra(PREF_USERNAME, username)
+                putExtra(PREF_PASSWORD, password)
             }
             context.startForegroundService(intent)
         }
@@ -78,18 +82,19 @@ class NtfyService : Service() {
             ACTION_START -> {
                 val serverUrl = intent.getStringExtra(PREF_SERVER_URL) ?: DEFAULT_SERVER
                 val topic = intent.getStringExtra(PREF_TOPIC) ?: DEFAULT_TOPIC
-                val token = intent.getStringExtra(PREF_TOKEN)
+                val username = intent.getStringExtra(PREF_USERNAME)
+                val password = intent.getStringExtra(PREF_PASSWORD)
 
-                // 保存配置
                 prefs.edit().apply {
                     putString(PREF_SERVER_URL, serverUrl)
                     putString(PREF_TOPIC, topic)
-                    putString(PREF_TOKEN, token)
+                    putString(PREF_USERNAME, username)
+                    putString(PREF_PASSWORD, password)
                     apply()
                 }
 
                 startForeground(NOTIFICATION_ID, createServiceNotification())
-                connectWebSocket(serverUrl, topic, token)
+                connectWebSocket(serverUrl, topic, username, password)
             }
             ACTION_STOP -> {
                 disconnectWebSocket()
@@ -97,13 +102,13 @@ class NtfyService : Service() {
                 stopSelf()
             }
             else -> {
-                // 从 SharedPreferences 恢复
                 val serverUrl = prefs.getString(PREF_SERVER_URL, DEFAULT_SERVER) ?: DEFAULT_SERVER
                 val topic = prefs.getString(PREF_TOPIC, DEFAULT_TOPIC) ?: DEFAULT_TOPIC
-                val token = prefs.getString(PREF_TOKEN, null)
+                val username = prefs.getString(PREF_USERNAME, null)
+                val password = prefs.getString(PREF_PASSWORD, null)
 
                 startForeground(NOTIFICATION_ID, createServiceNotification())
-                connectWebSocket(serverUrl, topic, token)
+                connectWebSocket(serverUrl, topic, username, password)
             }
         }
         return START_STICKY
@@ -117,13 +122,36 @@ class NtfyService : Service() {
         super.onDestroy()
     }
 
-    private fun connectWebSocket(serverUrl: String, topic: String, token: String?) {
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d(TAG, "onTaskRemoved — scheduling restart in 1s")
+        val restartIntent = Intent(this, NtfyService::class.java).apply {
+            action = ACTION_START
+            putExtra(PREF_SERVER_URL, prefs.getString(PREF_SERVER_URL, DEFAULT_SERVER))
+            putExtra(PREF_TOPIC, prefs.getString(PREF_TOPIC, DEFAULT_TOPIC))
+            putExtra(PREF_USERNAME, prefs.getString(PREF_USERNAME, null))
+            putExtra(PREF_PASSWORD, prefs.getString(PREF_PASSWORD, null))
+        }
+        val pendingIntent = PendingIntent.getService(
+            this, 1, restartIntent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarm = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarm.set(
+            AlarmManager.ELAPSED_REALTIME,
+            SystemClock.elapsedRealtime() + 1000,
+            pendingIntent
+        )
+        super.onTaskRemoved(rootIntent)
+    }
+
+    private fun connectWebSocket(serverUrl: String, topic: String, username: String?, password: String?) {
         disconnectWebSocket()
 
         webSocket = NtfyWebSocket(
             serverUrl = serverUrl,
             topic = topic,
-            token = token,
+            username = username,
+            password = password,
             onMessage = { message ->
                 serviceScope.launch {
                     handleIncomingMessage(message)
@@ -154,7 +182,6 @@ class NtfyService : Service() {
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java)
 
-        // 服务通知渠道（低优先级）
         val serviceChannel = NotificationChannel(
             CHANNEL_ID,
             "ntfy 服务",
@@ -165,7 +192,6 @@ class NtfyService : Service() {
         }
         manager.createNotificationChannel(serviceChannel)
 
-        // 消息通知渠道（高优先级）
         val messageChannel = NotificationChannel(
             MESSAGE_CHANNEL_ID,
             "ntfy 消息",

@@ -10,10 +10,18 @@ import com.flypigs.ntfyapp.ui.screen.detail.DetailScreen
 import com.flypigs.ntfyapp.ui.screen.home.HomeScreen
 import com.flypigs.ntfyapp.ui.screen.settings.SettingsScreen
 import com.flypigs.ntfyapp.ui.screen.stats.StatsScreen
+import com.flypigs.ntfyapp.ui.theme.*
 
 @Composable
 fun NtfyNavGraph(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = "home") {
+    NavHost(
+        navController = navController,
+        startDestination = "home",
+        enterTransition = { pageEnterTransition() },
+        exitTransition = { pageExitTransition() },
+        popEnterTransition = { pagePopEnterTransition() },
+        popExitTransition = { pagePopExitTransition() }
+    ) {
         composable("home") {
             HomeScreen(
                 onNavigateToSettings = { navController.navigate("settings") },
@@ -24,9 +32,7 @@ fun NtfyNavGraph(navController: NavHostController) {
             StatsScreen()
         }
         composable("settings") {
-            SettingsScreen(
-                onNavigateBack = { navController.popBackStack() }
-            )
+            SettingsScreen()
         }
         composable(
             route = "detail/{messageId}",

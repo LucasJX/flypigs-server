@@ -11,6 +11,5 @@ data class ServerEntity(
     val name: String,
     val username: String? = null,
     val password: String? = null,
-    val token: String? = null,
     val isConnected: Boolean = false
 )

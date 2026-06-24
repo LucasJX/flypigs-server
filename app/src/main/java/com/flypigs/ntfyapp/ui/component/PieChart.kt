@@ -5,30 +5,26 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.flypigs.ntfyapp.data.local.dao.CategoryCount
 import com.flypigs.ntfyapp.domain.model.MessageCategory
-
-private val chartColors = listOf(
-    Color(0xFF1976D2), // NODE_CHANGE
-    Color(0xFFD32F2F), // SYSTEM_ALERT
-    Color(0xFF388E3C), // RECOVERY
-    Color(0xFFF57C00), // UPDATE
-    Color(0xFF757575)  // OTHER
-)
 
 @Composable
 fun PieChart(
     data: List<CategoryCount>,
     modifier: Modifier = Modifier
 ) {
+    val defaultColor = MaterialTheme.colorScheme.outline
+    val chartColors = remember {
+        MessageCategory.entries.associate { it.name to it.color }
+    }
+
     if (data.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             Text("暂无数据", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -50,19 +46,26 @@ fun PieChart(
     ) {
         // Pie chart
         Canvas(
-            modifier = Modifier.size(140.dp)
+            modifier = Modifier
+                .size(120.dp)
+                .padding(8.dp)
         ) {
+            val strokeWidth = 24.dp.toPx()
+            val radius = (size.minDimension - strokeWidth) / 2
+            val center = Offset(size.width / 2, size.height / 2)
+
             var startAngle = -90f
-            data.forEachIndexed { index, stat ->
+            data.forEach { stat ->
                 val sweepAngle = (stat.count.toFloat() / total) * 360f
-                val colorIndex = getCategoryIndex(stat.category)
+                val color = chartColors[stat.category] ?: defaultColor
                 drawArc(
-                    color = chartColors[colorIndex % chartColors.size],
+                    color = color,
                     startAngle = startAngle,
                     sweepAngle = sweepAngle,
-                    useCenter = true,
-                    topLeft = Offset.Zero,
-                    size = Size(size.width, size.height)
+                    useCenter = false,
+                    topLeft = Offset(center.x - radius, center.y - radius),
+                    size = Size(radius * 2, radius * 2),
+                    style = Stroke(width = strokeWidth)
                 )
                 startAngle += sweepAngle
             }
@@ -71,39 +74,27 @@ fun PieChart(
         Spacer(modifier = Modifier.width(16.dp))
 
         // Legend
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            data.forEachIndexed { index, stat ->
-                val colorIndex = getCategoryIndex(stat.category)
-                val percentage = (stat.count * 100 / total)
-                val displayName = getCategoryDisplayName(stat.category)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            data.forEach { stat ->
+                val category = try {
+                    MessageCategory.valueOf(stat.category)
+                } catch (_: Exception) {
+                    MessageCategory.OTHER
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Canvas(modifier = Modifier.size(12.dp)) {
-                        drawCircle(color = chartColors[colorIndex % chartColors.size])
+                        drawCircle(color = chartColors[stat.category] ?: category.color)
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "$displayName ${percentage}%",
+                        text = "${category.displayName} ${stat.count}",
                         style = MaterialTheme.typography.bodySmall,
-                        fontSize = 12.sp
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
-    }
-}
-
-private fun getCategoryIndex(category: String): Int {
-    return try {
-        MessageCategory.valueOf(category).ordinal
-    } catch (e: Exception) {
-        4 // OTHER
-    }
-}
-
-private fun getCategoryDisplayName(category: String): String {
-    return try {
-        MessageCategory.valueOf(category).displayName
-    } catch (e: Exception) {
-        "其他"
     }
 }

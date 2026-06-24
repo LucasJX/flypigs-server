@@ -14,5 +14,6 @@ data class MessageEntity(
     val tags: String?,        // 逗号分隔
     val timestamp: Long,
     val isRead: Boolean = false,
+    val isStarred: Boolean = false,
     val category: String      // NODE_CHANGE, SYSTEM_ALERT, RECOVERY, UPDATE, OTHER
 )

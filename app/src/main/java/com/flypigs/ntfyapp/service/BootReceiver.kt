@@ -20,9 +20,10 @@ class BootReceiver : BroadcastReceiver() {
                 ?: NtfyService.DEFAULT_SERVER
             val topic = prefs.getString(NtfyService.PREF_TOPIC, NtfyService.DEFAULT_TOPIC)
                 ?: NtfyService.DEFAULT_TOPIC
-            val token = prefs.getString(NtfyService.PREF_TOKEN, null)
+            val username = prefs.getString(NtfyService.PREF_USERNAME, null)
+            val password = prefs.getString(NtfyService.PREF_PASSWORD, null)
 
-            NtfyService.start(context, serverUrl, topic, token)
+            NtfyService.start(context, serverUrl, topic, username, password)
         }
     }
 }

@@ -63,6 +63,25 @@ class MessageRepository @Inject constructor(
 
     fun getDailyStats(since: Long) = messageDao.getDailyStats(since)
 
+    fun getMessagesByTopic(topic: String) = messageDao.getMessagesByTopic(topic)
+
+    fun getMessagesByTopicAndCategory(topic: String, category: MessageCategory) =
+        messageDao.getMessagesByTopicAndCategory(topic, category.name)
+
+    fun getUnreadMessages() = messageDao.getUnreadMessages()
+
+    fun getStarredMessages() = messageDao.getStarredMessages()
+
+    fun getUnreadCount() = messageDao.getUnreadCount()
+
+    fun getCategoryStatsByTopic(topic: String) = messageDao.getCategoryStatsByTopic(topic)
+
+    fun getMessageCountByTopic(topic: String) = messageDao.getMessageCountByTopic(topic)
+
+    fun getUnreadCountByTopic() = messageDao.getUnreadCountByTopic()
+
+    suspend fun toggleStarred(id: String, starred: Boolean) = messageDao.toggleStarred(id, starred)
+
     /**
      * 根据 tags 自动分类消息
      */
