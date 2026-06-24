@@ -1,6 +1,7 @@
 package com.flypigs.ntfyapp.ui.navigation
 
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
