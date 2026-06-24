@@ -14,3 +14,5 @@ local.properties
 *.apk
 *.ap_
 *.aab
+*.keystore
+*.jks
