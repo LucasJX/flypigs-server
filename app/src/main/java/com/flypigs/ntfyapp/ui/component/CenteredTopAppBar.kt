@@ -11,8 +11,13 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 统一的居中标题 TopAppBar
- * Surface + Row 自定义布局，紧凑 52dp
+ *
+ * 使用 M3 原生 TopAppBar，自动处理 edge-to-edge insets：
+ * - 背景色自动覆盖状态栏区域
+ * - 内容（标题/图标）自动避开状态栏
+ * - 无多余空白
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CenteredTopAppBar(
     title: String,
@@ -21,52 +26,35 @@ fun CenteredTopAppBar(
     actions: @Composable (RowScope.() -> Unit) = {},
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp
-    ) {
-        Column(modifier = Modifier.statusBarsPadding()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .padding(horizontal = 4.dp)
+    TopAppBar(
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (navigationIcon != null) {
-                    Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                        navigationIcon()
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
+                    textAlign = TextAlign.Center
+                )
+                if (subtitle != null) {
                     Text(
-                        title,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
-                    if (subtitle != null) {
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
                 }
-
-                Row(
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    verticalAlignment = Alignment.CenterVertically,
-                    content = actions
-                )
             }
-        }
-    }
+        },
+        navigationIcon = { navigationIcon?.invoke() },
+        actions = { actions() },
+        modifier = modifier,
+        windowInsets = TopAppBarDefaults.windowInsets,
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    )
 }

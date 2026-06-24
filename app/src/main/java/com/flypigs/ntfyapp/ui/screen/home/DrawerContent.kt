@@ -13,6 +13,9 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 侧边栏内容 — 独立 composable，供 MainActivity 的 ModalNavigationDrawer 使用
+ *
+ * 注意：不要在这里包裹 ModalDrawerSheet，因为 MainActivity 已经提供了外层 sheet 容器。
+ * 这里只负责内容布局，insets 由各区域自行处理。
  */
 @Composable
 fun DrawerContent(
@@ -25,23 +28,22 @@ fun DrawerContent(
     onSelectTopic: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ModalDrawerSheet(
-        modifier = modifier.width(300.dp).fillMaxHeight(),
-        drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        windowInsets = WindowInsets(0)
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surfaceContainer)
     ) {
-        // ── 头部区域 ──
+        // ── 头部区域：背景色覆盖状态栏，内容用 windowInsetsPadding 避开 ──
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primary),
+                .background(MaterialTheme.colorScheme.primary)
+                .windowInsetsPadding(WindowInsets.statusBars),
             contentAlignment = Alignment.Center
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .padding(vertical = 24.dp)
+                modifier = Modifier.padding(vertical = 24.dp)
             ) {
                 Icon(
                     Icons.Default.Notifications,
@@ -120,11 +122,11 @@ fun DrawerContent(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // ── 底部版本 ──
+        // ── 底部版本：背景覆盖导航栏，内容用 windowInsetsPadding 避开 ──
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
+                .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(16.dp),
             contentAlignment = Alignment.Center
         ) {

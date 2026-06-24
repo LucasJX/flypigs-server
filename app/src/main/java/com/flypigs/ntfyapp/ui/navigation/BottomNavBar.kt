@@ -1,5 +1,7 @@
 package com.flypigs.ntfyapp.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Email
@@ -7,6 +9,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -26,7 +29,9 @@ fun BottomNavBar(navController: NavHostController) {
         BottomNavItem("settings", "设置", Icons.Default.Settings)
     )
 
-    NavigationBar {
+    NavigationBar(
+        modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+    ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
 

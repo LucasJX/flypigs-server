@@ -112,8 +112,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // 直接用 Scaffold，不用额外 Surface 包裹
                     // Scaffold 的 containerColor 用 background 色，让 scrim 能正确覆盖
+                    // contentWindowInsets = 空 → 让每个页面的 TopAppBar 自己管理状态栏 insets
                     Scaffold(
                         containerColor = MaterialTheme.colorScheme.background,
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         bottomBar = {
                             if (showBottomBar) {
                                 BottomNavBar(navController)
