@@ -1,7 +1,5 @@
 package com.flypigs.ntfyapp.ui.navigation
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.material3.DrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier

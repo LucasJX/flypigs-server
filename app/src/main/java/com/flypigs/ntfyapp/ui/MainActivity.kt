@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -95,7 +94,10 @@ class MainActivity : ComponentActivity() {
                 val drawerState = rememberDrawerState(DrawerValue.Closed)
                 val drawerContentState = LocalDrawerContent.current
 
-                // ModalNavigationDrawer 在最外层，scrim 覆盖全部内容（含 bottomBar）
+                // 结构: ModalNavigationDrawer > Scaffold(bottomBar) > NavHost
+                // - drawer sheet fillMaxHeight 覆盖全屏（含 Scaffold 的 bottomBar）
+                // - Scaffold 处理系统导航栏 insets，BottomNavBar 不自行处理
+                // - scrim 覆盖整个 Scaffold 内容
                 ModalNavigationDrawer(
                     drawerState = drawerState,
                     drawerContent = {
@@ -110,9 +112,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) {
-                    // 直接用 Scaffold，不用额外 Surface 包裹
-                    // Scaffold 的 containerColor 用 background 色，让 scrim 能正确覆盖
-                    // contentWindowInsets = 空 → 让每个页面的 TopAppBar 自己管理状态栏 insets
                     Scaffold(
                         containerColor = MaterialTheme.colorScheme.background,
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
