@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
+import com.flypigs.ntfyapp.util.parseMarkdown
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flypigs.ntfyapp.domain.model.MessageCategory
 import java.text.SimpleDateFormat
@@ -97,7 +98,7 @@ fun DetailScreen(
                     )
                 ) {
                     Text(
-                        text = msg.body,
+                        text = parseMarkdown(msg.body),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(16.dp)
                     )
@@ -228,3 +229,5 @@ private fun getPriorityText(priority: Int): String {
         else -> "默认"
     }
 }
+
+
