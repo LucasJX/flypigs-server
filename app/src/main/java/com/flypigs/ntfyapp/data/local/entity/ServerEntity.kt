@@ -10,6 +10,7 @@ data class ServerEntity(
     val url: String,
     val name: String,
     val username: String? = null,
-    val password: String? = null,
+    val hasPassword: Boolean = false,   // 标记是否有密码，实际密码存 SecureStorage
+    val token: String? = null,          // ntfy Access Token
     val isConnected: Boolean = false
 )

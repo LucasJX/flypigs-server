@@ -11,8 +11,8 @@ import com.flypigs.ntfyapp.data.local.entity.TopicEntity
 
 @Database(
     entities = [MessageEntity::class, ServerEntity::class, TopicEntity::class],
-    version = 4,
-    exportSchema = false
+    version = 5,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao

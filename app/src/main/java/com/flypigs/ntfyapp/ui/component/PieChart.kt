@@ -1,10 +1,13 @@
 package com.flypigs.ntfyapp.ui.component
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,7 +25,16 @@ fun PieChart(
 ) {
     val defaultColor = MaterialTheme.colorScheme.outline
     val chartColors = remember {
-        MessageCategory.entries.associate { it.name to it.color }
+        MessageCategory.entries.associate { it.name to it.fallbackColor }
+    }
+    // 在 Composable 上下文中获取 theme-aware 颜色映射
+    val themeChartColors = MessageCategory.entries.associate { it.name to it.color }
+
+    // ─── 动画 ────────────────────────────────────────────────
+    val animProgress = remember { Animatable(0f) }
+    LaunchedEffect(data) {
+        animProgress.snapTo(0f)
+        animProgress.animateTo(1f, animationSpec = tween(durationMillis = 800))
     }
 
     if (data.isEmpty()) {
@@ -44,7 +56,7 @@ fun PieChart(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Pie chart
+        // Pie chart — 动画驱动 sweepAngle 从 0 渐进到目标值
         Canvas(
             modifier = Modifier
                 .size(120.dp)
@@ -53,11 +65,12 @@ fun PieChart(
             val strokeWidth = 24.dp.toPx()
             val radius = (size.minDimension - strokeWidth) / 2
             val center = Offset(size.width / 2, size.height / 2)
+            val progress = animProgress.value
 
             var startAngle = -90f
             data.forEach { stat ->
-                val sweepAngle = (stat.count.toFloat() / total) * 360f
-                val color = chartColors[stat.category] ?: defaultColor
+                val sweepAngle = (stat.count.toFloat() / total) * 360f * progress
+                val color = themeChartColors[stat.category] ?: chartColors[stat.category] ?: defaultColor
                 drawArc(
                     color = color,
                     startAngle = startAngle,
@@ -67,7 +80,7 @@ fun PieChart(
                     size = Size(radius * 2, radius * 2),
                     style = Stroke(width = strokeWidth)
                 )
-                startAngle += sweepAngle
+                startAngle += (stat.count.toFloat() / total) * 360f * progress
             }
         }
 
@@ -85,7 +98,7 @@ fun PieChart(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Canvas(modifier = Modifier.size(12.dp)) {
-                        drawCircle(color = chartColors[stat.category] ?: category.color)
+                        drawCircle(color = themeChartColors[stat.category] ?: chartColors[stat.category] ?: category.fallbackColor)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(

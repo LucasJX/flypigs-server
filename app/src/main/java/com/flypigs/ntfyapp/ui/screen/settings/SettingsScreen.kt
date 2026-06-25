@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.flypigs.ntfyapp.data.local.entity.ServerEntity
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import android.content.Context
 import android.content.Intent
@@ -30,7 +31,57 @@ import com.flypigs.ntfyapp.ui.theme.ThemeMode
 import androidx.hilt.navigation.compose.hiltViewModel
 
 
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+
+
 // ─── 优化项 ─────────────────────────────────────────────────
+
+/**
+ * 服务器选择下拉框（多服务器场景时使用）
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DropdownMenuItemServerSelector(
+    servers: List<ServerEntity>,
+    selectedServerId: String,
+    onSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedServer = servers.find { it.id == selectedServerId }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = selectedServer?.name ?: "",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("所属服务器") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            servers.forEach { server ->
+                DropdownMenuItem(
+                    text = { Text("${server.name} (${server.url})") },
+                    onClick = {
+                        onSelected(server.id)
+                        expanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                )
+            }
+        }
+    }
+}
 data class OptimizationItem(
     val title: String,
     val description: String,
@@ -417,13 +468,41 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    var passwordVisible by remember { mutableStateOf(false) }
                     OutlinedTextField(
                         value = serverPassword,
                         onValueChange = { serverPassword = it },
                         label = { Text("密码") },
                         singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, "切换密码可见性")
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    // HTTP 安全提示
+                    val isHttpUrl = serverUrl.startsWith("http://")
+                    if (isHttpUrl && serverUrl.isNotBlank()) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                Text(
+                                    "HTTP 连接不加密，密码和消息可能被窃听。建议使用 HTTPS/WSS。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -453,6 +532,7 @@ fun SettingsScreen(
 
     // Add Topic Dialog
     if (showAddTopicDialog) {
+        var selectedServerId by remember { mutableStateOf(servers.firstOrNull()?.id ?: "") }
         AlertDialog(
             onDismissRequest = { showAddTopicDialog = false },
             title = { Text("添加 Topic") },
@@ -474,14 +554,23 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    // 多服务器时选择目标服务器
+                    if (servers.size > 1) {
+                        DropdownMenuItemServerSelector(
+                            servers = servers,
+                            selectedServerId = selectedServerId,
+                            onSelected = { selectedServerId = it }
+                        )
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (topicName.isNotBlank() && topicDisplayName.isNotBlank() && servers.isNotEmpty()) {
+                        val targetServerId = if (servers.size > 1) selectedServerId else servers.first().id
+                        if (topicName.isNotBlank() && topicDisplayName.isNotBlank() && targetServerId.isNotBlank()) {
                             viewModel.addTopic(
-                                serverId = servers.first().id,
+                                serverId = targetServerId,
                                 name = topicName,
                                 displayName = topicDisplayName
                             )

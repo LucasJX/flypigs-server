@@ -1,10 +1,14 @@
 package com.flypigs.ntfyapp.ui.component
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -29,6 +33,13 @@ fun BarChart(
         MaterialTheme.colorScheme.tertiaryContainer,
         MaterialTheme.colorScheme.errorContainer
     )
+
+    // ─── 动画 ────────────────────────────────────────────────
+    val animProgress = remember { Animatable(0f) }
+    LaunchedEffect(data) {
+        animProgress.snapTo(0f)
+        animProgress.animateTo(1f, animationSpec = tween(durationMillis = 600))
+    }
 
     if (data.isEmpty()) {
         Box(modifier = modifier) {
@@ -57,13 +68,13 @@ fun BarChart(
                     maxLines = 1
                 )
 
-                // Bar
+                // Bar — 动画驱动宽度从 0 渐进到目标值
                 Canvas(
                     modifier = Modifier
                         .weight(1f)
                         .height(20.dp)
                 ) {
-                    val barWidth = (stat.count / maxCount) * size.width
+                    val barWidth = (stat.count / maxCount) * size.width * animProgress.value
                     val color = barColors[index % barColors.size]
                     drawRoundRect(
                         color = color,

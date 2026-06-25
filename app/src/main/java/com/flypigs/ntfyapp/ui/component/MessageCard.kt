@@ -1,5 +1,6 @@
 package com.flypigs.ntfyapp.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,8 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.domain.model.MessageCategory
@@ -30,15 +33,29 @@ fun MessageCard(
         MessageCategory.OTHER
     }
 
+    // ─── 优先级视觉区分 ────────────────────────────────────
+    val priorityIndicatorColor = when (message.priority) {
+        5 -> MaterialTheme.colorScheme.error                  // 紧急: 红
+        4 -> MaterialTheme.colorScheme.error.copy(alpha=0.7f) // 高: 淡红
+        1 -> MaterialTheme.colorScheme.outlineVariant         // 最低: 灰
+        2 -> MaterialTheme.colorScheme.outlineVariant         // 低: 灰
+        else -> null                                           // 默认: 无
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium, // 28dp rounded corners
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (priorityIndicatorColor != null)
+                priorityIndicatorColor!!.copy(alpha = 0.05f)
+            else MaterialTheme.colorScheme.surface
         ),
+        border = if (priorityIndicatorColor != null) {
+            BorderStroke(2.dp, SolidColor(priorityIndicatorColor!!))
+        } else null,
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (message.isRead) 0.dp else 2.dp
         )

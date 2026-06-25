@@ -8,15 +8,17 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
-import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.flypigs.ntfyapp.R
+import com.flypigs.ntfyapp.data.local.SecureStorage
+import com.flypigs.ntfyapp.data.local.entity.TopicEntity
 import com.flypigs.ntfyapp.data.remote.NtfyMessage
 import com.flypigs.ntfyapp.data.remote.NtfyWebSocket
 import com.flypigs.ntfyapp.data.repository.MessageRepository
+import com.flypigs.ntfyapp.data.repository.ServerRepository
+import com.flypigs.ntfyapp.data.repository.TopicRepository
 import com.flypigs.ntfyapp.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -37,21 +39,15 @@ class NtfyService : Service() {
 
         const val ACTION_START = "com.flypigs.ntfyapp.START"
         const val ACTION_STOP = "com.flypigs.ntfyapp.STOP"
+        const val ACTION_RECONNECT_ALL = "com.flypigs.ntfyapp.RECONNECT_ALL"
 
-        const val PREF_SERVER_URL = "server_url"
-        const val PREF_TOPIC = "topic"
-        const val PREF_USERNAME = "username"
-        const val PREF_PASSWORD = "password"
-        const val DEFAULT_SERVER = "https://ntfy.sh"
-        const val DEFAULT_TOPIC = "test"
-
-        fun start(context: Context, serverUrl: String, topic: String, username: String? = null, password: String? = null) {
+        /**
+         * 启动服务 — 不再通过 Intent 传递敏感信息
+         * Service 启动后通过 Hilt 注入的 Repository 从 Room + SecureStorage 读取凭据
+         */
+        fun start(context: Context) {
             val intent = Intent(context, NtfyService::class.java).apply {
                 action = ACTION_START
-                putExtra(PREF_SERVER_URL, serverUrl)
-                putExtra(PREF_TOPIC, topic)
-                putExtra(PREF_USERNAME, username)
-                putExtra(PREF_PASSWORD, password)
             }
             context.startForegroundService(intent)
         }
@@ -64,60 +60,47 @@ class NtfyService : Service() {
         }
     }
 
-    @Inject
-    lateinit var repository: MessageRepository
+    @Inject lateinit var messageRepository: MessageRepository
+    @Inject lateinit var serverRepository: ServerRepository
+    @Inject lateinit var topicRepository: TopicRepository
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var webSocket: NtfyWebSocket? = null
-    private lateinit var prefs: SharedPreferences
+    private val connections = mutableMapOf<String, NtfyWebSocket>()  // key: "serverId:topicName"
 
     override fun onCreate() {
         super.onCreate()
-        prefs = getSharedPreferences("ntfy_prefs", MODE_PRIVATE)
         createNotificationChannels()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val serverUrl = intent.getStringExtra(PREF_SERVER_URL) ?: DEFAULT_SERVER
-                val topic = intent.getStringExtra(PREF_TOPIC) ?: DEFAULT_TOPIC
-                val username = intent.getStringExtra(PREF_USERNAME)
-                val password = intent.getStringExtra(PREF_PASSWORD)
-
-                prefs.edit().apply {
-                    putString(PREF_SERVER_URL, serverUrl)
-                    putString(PREF_TOPIC, topic)
-                    putString(PREF_USERNAME, username)
-                    putString(PREF_PASSWORD, password)
-                    apply()
-                }
-
                 startForeground(NOTIFICATION_ID, createServiceNotification())
-                connectWebSocket(serverUrl, topic, username, password)
+                connectAllEnabledTopics()
             }
             ACTION_STOP -> {
-                disconnectWebSocket()
+                disconnectAll()
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
-            else -> {
-                val serverUrl = prefs.getString(PREF_SERVER_URL, DEFAULT_SERVER) ?: DEFAULT_SERVER
-                val topic = prefs.getString(PREF_TOPIC, DEFAULT_TOPIC) ?: DEFAULT_TOPIC
-                val username = prefs.getString(PREF_USERNAME, null)
-                val password = prefs.getString(PREF_PASSWORD, null)
-
+            ACTION_RECONNECT_ALL -> {
                 startForeground(NOTIFICATION_ID, createServiceNotification())
-                connectWebSocket(serverUrl, topic, username, password)
+                disconnectAll()
+                connectAllEnabledTopics()
+            }
+            else -> {
+                // 系统重建 Service 时（START_STICKY），重新连接
+                startForeground(NOTIFICATION_ID, createServiceNotification())
+                connectAllEnabledTopics()
             }
         }
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent?) = null
 
     override fun onDestroy() {
-        disconnectWebSocket()
+        disconnectAll()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -126,10 +109,6 @@ class NtfyService : Service() {
         Log.d(TAG, "onTaskRemoved — scheduling restart in 1s")
         val restartIntent = Intent(this, NtfyService::class.java).apply {
             action = ACTION_START
-            putExtra(PREF_SERVER_URL, prefs.getString(PREF_SERVER_URL, DEFAULT_SERVER))
-            putExtra(PREF_TOPIC, prefs.getString(PREF_TOPIC, DEFAULT_TOPIC))
-            putExtra(PREF_USERNAME, prefs.getString(PREF_USERNAME, null))
-            putExtra(PREF_PASSWORD, prefs.getString(PREF_PASSWORD, null))
         }
         val pendingIntent = PendingIntent.getService(
             this, 1, restartIntent,
@@ -144,36 +123,76 @@ class NtfyService : Service() {
         super.onTaskRemoved(rootIntent)
     }
 
-    private fun connectWebSocket(serverUrl: String, topic: String, username: String?, password: String?) {
-        disconnectWebSocket()
+    /**
+     * 从 Room 读取所有 enabled Topic，为每个建立 WebSocket 连接
+     * 密码从 SecureStorage 读取，不再从 Intent/SharedPreferences 传入
+     */
+    private fun connectAllEnabledTopics() {
+        serviceScope.launch {
+            try {
+                val servers = serverRepository.getAllServersSuspend()
+                val enabledTopics = topicRepository.getAllEnabledTopicsSuspend()
 
-        webSocket = NtfyWebSocket(
-            serverUrl = serverUrl,
-            topic = topic,
-            username = username,
-            password = password,
-            onMessage = { message ->
-                serviceScope.launch {
-                    handleIncomingMessage(message)
+                if (enabledTopics.isEmpty()) {
+                    Log.w(TAG, "No enabled topics to connect")
+                    return@launch
                 }
-            },
-            onConnectionChanged = { connected ->
-                updateServiceNotification(connected)
+
+                for (topic in enabledTopics) {
+                    val server = servers.find { it.id == topic.serverId }
+                    if (server == null) {
+                        Log.w(TAG, "Server not found for topic ${topic.name}, skipping")
+                        continue
+                    }
+
+                    val password = SecureStorage.getPassword(server.id)
+                    val key = "${server.id}:${topic.name}"
+
+                    if (connections.containsKey(key)) {
+                        continue  // 已连接，跳过
+                    }
+
+                    val ws = NtfyWebSocket(
+                        serverUrl = server.url,
+                        topic = topic.name,
+                        username = server.username,
+                        password = password,
+                        token = server.token,
+                        client = NtfyWebSocket.sharedClient,
+                        onMessage = { message ->
+                            serviceScope.launch {
+                                handleIncomingMessage(message, server.id, topic.name)
+                            }
+                        },
+                        onConnectionChanged = { connected ->
+                            serviceScope.launch {
+                                serverRepository.updateConnectionStatus(server.id, connected)
+                            }
+                            updateServiceNotification(connected)
+                        }
+                    )
+                    connections[key] = ws
+                    ws.connect()
+                    Log.d(TAG, "Connecting to ${server.url}/${topic.name}")
+                }
+
+                Log.d(TAG, "Total connections: ${connections.size}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to connect topics", e)
             }
-        )
-        webSocket?.connect()
+        }
     }
 
-    private fun disconnectWebSocket() {
-        webSocket?.disconnect()
-        webSocket = null
+    private fun disconnectAll() {
+        connections.values.forEach { it.disconnect() }
+        connections.clear()
     }
 
-    private suspend fun handleIncomingMessage(ntfyMessage: NtfyMessage) {
+    private suspend fun handleIncomingMessage(ntfyMessage: NtfyMessage, serverId: String, topicName: String) {
         try {
-            val entity = repository.insertMessage(ntfyMessage)
+            val entity = messageRepository.insertMessage(ntfyMessage)
             showMessageNotification(ntfyMessage, entity.category)
-            Log.d(TAG, "Message saved: ${ntfyMessage.id}")
+            Log.d(TAG, "Message saved: ${ntfyMessage.id} from $topicName")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save message", e)
         }
@@ -210,7 +229,7 @@ class NtfyService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val statusText = if (connected) "已连接" else "连接中..."
+        val statusText = if (connected) "已连接 (${connections.size} topic)" else "连接中..."
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("ntfy 通知服务")

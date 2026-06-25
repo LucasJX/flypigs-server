@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+}
+
+// 从 local.properties 读取签名信息，避免密码硬编码
+val localProps = Properties()
+val localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localProps.load(localPropsFile.inputStream())
 }
 
 android {
@@ -24,10 +33,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("../release.jks")
-            storePassword = "flypigs123"
-            keyAlias = "flypigs"
-            keyPassword = "flypigs123"
+            storeFile = file(localProps.getProperty("keystore.file", "../release.jks"))
+            storePassword = localProps.getProperty("keystore.password", "")
+            keyAlias = localProps.getProperty("keystore.alias", "flypigs")
+            keyPassword = localProps.getProperty("keystore.keyPassword", "")
         }
     }
 
@@ -53,6 +62,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -91,6 +101,7 @@ dependencies {
     // Room
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
+    implementation("androidx.room:room-paging:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
     // Hilt
@@ -104,6 +115,16 @@ dependencies {
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // EncryptedSharedPreferences — 密码安全存储
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // Timber — 结构化日志 + Release 关闭 debug
+    implementation("com.jakewharton.timber:timber:5.0.1")
+
+    // Paging 3
+    implementation("androidx.paging:paging-runtime-ktx:3.2.1")
+    implementation("androidx.paging:paging-compose:3.2.1")
 }

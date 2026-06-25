@@ -18,8 +18,14 @@ interface TopicDao {
     @Query("SELECT * FROM topics WHERE serverId = :serverId ORDER BY name ASC")
     fun getTopicsByServer(serverId: String): Flow<List<TopicEntity>>
 
+    @Query("SELECT * FROM topics WHERE serverId = :serverId ORDER BY name ASC")
+    suspend fun getTopicsByServerSuspend(serverId: String): List<TopicEntity>
+
     @Query("SELECT * FROM topics WHERE isEnabled = 1 ORDER BY name ASC")
     fun getEnabledTopics(): Flow<List<TopicEntity>>
+
+    @Query("SELECT * FROM topics WHERE isEnabled = 1 ORDER BY name ASC")
+    suspend fun getAllEnabledTopicsSuspend(): List<TopicEntity>
 
     @Query("SELECT * FROM topics WHERE id = :id")
     suspend fun getTopicById(id: String): TopicEntity?

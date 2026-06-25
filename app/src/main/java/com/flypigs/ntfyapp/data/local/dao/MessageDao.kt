@@ -1,5 +1,6 @@
 package com.flypigs.ntfyapp.data.local.dao
 
+import androidx.paging.PagingSource
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -55,7 +56,7 @@ interface MessageDao {
     @Query("SELECT topic, COUNT(*) as count FROM messages GROUP BY topic ORDER BY count DESC")
     fun getTopicStats(): Flow<List<TopicCount>>
 
-    @Query("SELECT date(timestamp / 1000, 'unixepoch') as date, COUNT(*) as count FROM messages WHERE timestamp >= :since GROUP BY date ORDER BY date")
+    @Query("SELECT date(timestamp / 1000, 'unixepoch', 'localtime') as date, COUNT(*) as count FROM messages WHERE timestamp >= :since GROUP BY date ORDER BY date")
     fun getDailyStats(since: Long): Flow<List<DailyCount>>
 
     @Query("SELECT * FROM messages WHERE topic = :topic ORDER BY timestamp DESC")
@@ -84,6 +85,40 @@ interface MessageDao {
 
     @Query("SELECT topic, COUNT(*) as count FROM messages WHERE isRead = 0 GROUP BY topic")
     fun getUnreadCountByTopic(): Flow<List<TopicCount>>
+
+    // ─── 聚合查询（EventSummary 使用，避免全量加载） ──────────
+    @Query("SELECT * FROM messages ORDER BY timestamp DESC LIMIT 1")
+    fun getLatestMessage(): Flow<MessageEntity?>
+
+    // ─── 分页查询 ────────────────────────────────────────────
+    @Query("SELECT * FROM messages ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    suspend fun getMessagesPaged(limit: Int, offset: Int): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE topic = :topic ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    suspend fun getMessagesByTopicPaged(topic: String, limit: Int, offset: Int): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE category = :category ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    suspend fun getMessagesByCategoryPaged(category: String, limit: Int, offset: Int): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE isRead = 0 ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    suspend fun getUnreadMessagesPaged(limit: Int, offset: Int): List<MessageEntity>
+
+    // ─── 级联删除辅助 ──────────────────────────────────────────
+    @Query("DELETE FROM messages WHERE topic IN (:topicNames)")
+    suspend fun deleteMessagesByTopicNames(topicNames: List<String>)
+
+    // ─── Paging 3 ──────────────────────────────────────────────────
+    @Query("SELECT * FROM messages ORDER BY timestamp DESC")
+    fun getAllMessagesPagingSource(): PagingSource<Int, MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE isRead = 0 ORDER BY timestamp DESC")
+    fun getUnreadMessagesPagingSource(): PagingSource<Int, MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE category = :category ORDER BY timestamp DESC")
+    fun getMessagesByCategoryPagingSource(category: String): PagingSource<Int, MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE topic = :topic ORDER BY timestamp DESC")
+    fun getMessagesByTopicPagingSource(topic: String): PagingSource<Int, MessageEntity>
 }
 
 data class CategoryCount(

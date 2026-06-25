@@ -27,9 +27,9 @@ class SettingsViewModel @Inject constructor(
     val topics: StateFlow<List<TopicEntity>> = topicRepository.getAllTopics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addServer(url: String, name: String, username: String? = null, password: String? = null) {
+    fun addServer(url: String, name: String, username: String? = null, password: String? = null, token: String? = null) {
         viewModelScope.launch {
-            serverRepository.addServer(url = url, name = name, username = username, password = password)
+            serverRepository.addServer(url = url, name = name, username = username, password = password, token = token)
         }
     }
 
@@ -39,11 +39,21 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateServer(id: String, url: String, name: String, username: String? = null, password: String? = null) {
+    fun updateServer(id: String, url: String, name: String, username: String? = null, password: String? = null, token: String? = null) {
         viewModelScope.launch {
+            val existing = serverRepository.getServerById(id)
+            val hasPassword = !password.isNullOrBlank() || (existing?.hasPassword == true && password == null)
             serverRepository.updateServer(
-                ServerEntity(id = id, url = url, name = name, username = username, password = password)
+                ServerEntity(id = id, url = url, name = name, username = username, hasPassword = hasPassword, token = token)
             )
+            if (!password.isNullOrBlank()) {
+                com.flypigs.ntfyapp.data.local.SecureStorage.savePassword(id, password)
+            } else if (password == null && existing?.hasPassword == true) {
+                // password == null 表示 UI 没改动密码字段，保留原密码
+            } else if (password != null && password.isBlank()) {
+                // password 空字符串表示用户主动清空了密码
+                com.flypigs.ntfyapp.data.local.SecureStorage.removePassword(id)
+            }
         }
     }
 

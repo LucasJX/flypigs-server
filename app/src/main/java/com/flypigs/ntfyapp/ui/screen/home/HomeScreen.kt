@@ -17,6 +17,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.domain.model.MessageCategory
 import com.flypigs.ntfyapp.ui.LocalDrawerState
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
@@ -34,7 +38,6 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToDetail: (String) -> Unit = {}
 ) {
-    val messages by viewModel.messages.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedTopic by viewModel.selectedTopic.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
@@ -44,11 +47,19 @@ fun HomeScreen(
     val totalCount by viewModel.totalCount.collectAsState()
     val unreadCount by viewModel.unreadCount.collectAsState()
     val topicUnreadCounts by viewModel.topicUnreadCounts.collectAsState()
+    val listMode by viewModel.listMode.collectAsState()
+    val needsCombined by viewModel.needsCombinedFilter.collectAsState()
+
+    // Paging 数据
+    val pagingItems: LazyPagingItems<MessageEntity> = viewModel.pagingMessages.collectAsLazyPagingItems()
+
+    // 搜索/组合筛选数据
+    val searchMessages by viewModel.searchMessages.collectAsState()
+    val combinedMessages by viewModel.combinedMessages.collectAsState()
 
     val scope = rememberCoroutineScope()
     val drawerHolder = LocalDrawerState.current
 
-    // 写入 drawer 内容到 CompositionLocal（跨路由共享）
     DisposableEffect(Unit) {
         drawerHolder.value = drawerHolder.value.copy(
             content = @Composable {
@@ -75,7 +86,7 @@ fun HomeScreen(
         topBar = {
             val subtitle = when {
                 selectedTopic != null && selectedCategory != null ->
-                    "${"$"}${selectedCategory!!.displayName}"
+                    "${selectedCategory!!.displayName}"
                 selectedTopic != null -> {
                     val topicName = topics.find { it.name == selectedTopic }?.displayName ?: selectedTopic!!
                     topicName
@@ -185,44 +196,166 @@ fun HomeScreen(
                 }
             }
 
-            // 消息列表
-            if (messages.isEmpty()) {
-                EmptyState(
-                    tab = selectedTab,
-                    isSearching = isSearching,
-                    modifier = Modifier.fillMaxSize()
+            // ── 消息列表 ────────────────────────────────────────────────
+            // 三种模式：组合筛选 / 搜索 / Paging
+            if (needsCombined && !isSearching) {
+                // 组合筛选 (topic+category) — Flow<List>
+                val items = combinedMessages
+                if (items.isEmpty()) {
+                    EmptyState(tab = selectedTab, isSearching = false, modifier = Modifier.fillMaxSize())
+                } else {
+                    FlowListMessageList(
+                        messages = items,
+                        onNavigateToDetail = onNavigateToDetail,
+                        onMarkAsRead = { viewModel.markAsRead(it) }
+                    )
+                }
+            } else if (isSearching && searchQuery.isNotBlank()) {
+                // 搜索 — Flow<List>
+                val items = searchMessages
+                if (items.isEmpty()) {
+                    EmptyState(tab = selectedTab, isSearching = true, modifier = Modifier.fillMaxSize())
+                } else {
+                    FlowListMessageList(
+                        messages = items,
+                        onNavigateToDetail = onNavigateToDetail,
+                        onMarkAsRead = { viewModel.markAsRead(it) }
+                    )
+                }
+            } else {
+                // Paging — LazyPagingItems
+                PagingMessageList(
+                    pagingItems = pagingItems,
+                    onNavigateToDetail = onNavigateToDetail,
+                    onMarkAsRead = { viewModel.markAsRead(it) }
                 )
+            }
+        }
+    }
+}
+
+// ── Paging 消息列表 ──────────────────────────────────────────
+@Composable
+private fun PagingMessageList(
+    pagingItems: LazyPagingItems<MessageEntity>,
+    onNavigateToDetail: (String) -> Unit,
+    onMarkAsRead: (String) -> Unit
+) {
+    when (pagingItems.loadState.refresh) {
+        is LoadState.Loading -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+        is LoadState.Error -> {
+            val error = (pagingItems.loadState.refresh as LoadState.Error).error
+            Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.CloudOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("加载失败", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        error.message ?: "未知错误",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    FilledTonalButton(onClick = { pagingItems.retry() }) { Text("重新加载") }
+                }
+            }
+        }
+        is LoadState.NotLoading -> {
+            if (pagingItems.itemCount == 0) {
+                EmptyState(tab = MessageTab.ALL, isSearching = false, modifier = Modifier.fillMaxSize())
             } else {
                 LazyColumn {
-                    itemsIndexed(
-                        items = messages,
-                        key = { _, it -> it.id }
-                    ) { index, message ->
-                        AnimatedVisibility(
-                            visible = true,
-                            enter = fadeIn(
-                                animationSpec = androidx.compose.animation.core.tween(
-                                    durationMillis = 250,
-                                    delayMillis = (index * 30).coerceAtMost(300)
-                                )
-                            ) + slideInVertically(
-                                animationSpec = androidx.compose.animation.core.tween(
-                                    durationMillis = 250,
-                                    delayMillis = (index * 30).coerceAtMost(300)
-                                ),
-                                initialOffsetY = { it / 8 }
-                            )
-                        ) {
+                    items(
+                        count = pagingItems.itemCount,
+                        key = { index -> pagingItems[index]?.id ?: index }
+                    ) { index ->
+                        val message = pagingItems[index]
+                        if (message != null) {
                             MessageCard(
                                 message = message,
                                 onClick = {
-                                    viewModel.markAsRead(message.id)
+                                    onMarkAsRead(message.id)
                                     onNavigateToDetail(message.id)
                                 }
                             )
                         }
                     }
+
+                    // 底部加载状态
+                    pagingItems.apply {
+                        when (loadState.append) {
+                            is LoadState.Loading -> {
+                                item {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
+                                }
+                            }
+                            is LoadState.Error -> {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text("加载更多失败", color = MaterialTheme.colorScheme.error)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        TextButton(onClick = { retry() }) { Text("重试") }
+                                    }
+                                }
+                            }
+                            else -> {} // NotLoading — 无操作
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+// ── Flow<List> 消息列表 (搜索/组合筛选) ──────────────────────
+@Composable
+private fun FlowListMessageList(
+    messages: List<MessageEntity>,
+    onNavigateToDetail: (String) -> Unit,
+    onMarkAsRead: (String) -> Unit
+) {
+    LazyColumn {
+        itemsIndexed(
+            items = messages,
+            key = { _, it -> it.id }
+        ) { index, message ->
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(
+                        durationMillis = 250,
+                        delayMillis = (index * 30).coerceAtMost(300)
+                    )
+                ) + slideInVertically(
+                    animationSpec = androidx.compose.animation.core.tween(
+                        durationMillis = 250,
+                        delayMillis = (index * 30).coerceAtMost(300)
+                    ),
+                    initialOffsetY = { it / 8 }
+                )
+            ) {
+                MessageCard(
+                    message = message,
+                    onClick = {
+                        onMarkAsRead(message.id)
+                        onNavigateToDetail(message.id)
+                    }
+                )
             }
         }
     }
@@ -244,7 +377,6 @@ private fun EmptyState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 大图标
             Icon(
                 imageVector = when {
                     isSearching -> Icons.Default.SearchOff
@@ -258,7 +390,6 @@ private fun EmptyState(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 主标题
             Text(
                 text = when {
                     isSearching -> "未找到匹配的消息"
@@ -273,7 +404,6 @@ private fun EmptyState(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 描述文字
             Text(
                 text = when {
                     isSearching -> "尝试使用不同的关键词搜索"
@@ -285,18 +415,13 @@ private fun EmptyState(
                 textAlign = TextAlign.Center
             )
 
-            // 操作提示（仅全部消息空状态）
             if (!isSearching && tab == MessageTab.ALL) {
                 Spacer(modifier = Modifier.height(24.dp))
                 FilledTonalButton(
-                    onClick = { /* 可以跳转到设置页添加订阅 */ },
+                    onClick = { },
                     shape = MaterialTheme.shapes.small
                 ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("发送测试通知")
                 }
@@ -305,19 +430,13 @@ private fun EmptyState(
     }
 }
 
-// ── 工具函数 ──────────────────────────────
-
 private fun formatSummaryTime(timestamp: Long): String {
     val now = System.currentTimeMillis() / 1000
     val diff = now - timestamp
-
     return when {
         diff < 60 -> "刚刚"
         diff < 3600 -> "${diff / 60}分钟前"
         diff < 86400 -> "${diff / 3600}小时前"
-        else -> {
-            val sdf = SimpleDateFormat("MM/dd", Locale.getDefault())
-            sdf.format(Date(timestamp * 1000))
-        }
+        else -> SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date(timestamp * 1000))
     }
 }

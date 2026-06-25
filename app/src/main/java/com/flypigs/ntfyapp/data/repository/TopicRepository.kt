@@ -3,6 +3,7 @@ package com.flypigs.ntfyapp.data.repository
 import com.flypigs.ntfyapp.data.local.dao.TopicDao
 import com.flypigs.ntfyapp.data.local.entity.TopicEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,12 +13,16 @@ class TopicRepository @Inject constructor(
     private val topicDao: TopicDao
 ) {
 
-    fun getAllTopics(): Flow<List<TopicEntity>> = topicDao.getAllTopics()
+    fun getAllTopics(): Flow<List<TopicEntity>> =
+        topicDao.getAllTopics().distinctUntilChanged()
 
     fun getTopicsByServer(serverId: String): Flow<List<TopicEntity>> =
-        topicDao.getTopicsByServer(serverId)
+        topicDao.getTopicsByServer(serverId).distinctUntilChanged()
 
-    fun getEnabledTopics(): Flow<List<TopicEntity>> = topicDao.getEnabledTopics()
+    fun getEnabledTopics(): Flow<List<TopicEntity>> =
+        topicDao.getEnabledTopics().distinctUntilChanged()
+
+    suspend fun getAllEnabledTopicsSuspend(): List<TopicEntity> = topicDao.getAllEnabledTopicsSuspend()
 
     suspend fun addTopic(
         serverId: String,

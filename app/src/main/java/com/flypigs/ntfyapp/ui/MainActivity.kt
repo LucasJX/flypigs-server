@@ -18,15 +18,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.flypigs.ntfyapp.data.local.dao.ServerDao
-import com.flypigs.ntfyapp.data.local.dao.TopicDao
 import com.flypigs.ntfyapp.service.NtfyService
 import com.flypigs.ntfyapp.ui.navigation.BottomNavBar
 import com.flypigs.ntfyapp.ui.navigation.NtfyNavGraph
 import com.flypigs.ntfyapp.ui.theme.NtfyAppTheme
 import com.flypigs.ntfyapp.ui.theme.ThemeMode
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -35,10 +32,10 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject
-    lateinit var serverDao: ServerDao
+    lateinit var serverDao: com.flypigs.ntfyapp.data.local.dao.ServerDao
 
     @Inject
-    lateinit var topicDao: TopicDao
+    lateinit var topicDao: com.flypigs.ntfyapp.data.local.dao.TopicDao
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -137,27 +134,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startNtfyService() {
-        lifecycleScope.launch {
-            val server = serverDao.getAllServers().first().firstOrNull()
-            val topic = topicDao.getAllTopics().first().firstOrNull()
-            if (server != null && topic != null) {
-                val prefs = getSharedPreferences("ntfy_prefs", MODE_PRIVATE)
-                prefs.edit().apply {
-                    putString(NtfyService.PREF_SERVER_URL, server.url)
-                    putString(NtfyService.PREF_TOPIC, topic.name)
-                    putString(NtfyService.PREF_USERNAME, server.username)
-                    putString(NtfyService.PREF_PASSWORD, server.password)
-                    apply()
-                }
-                NtfyService.start(
-                    this@MainActivity,
-                    server.url,
-                    topic.name,
-                    server.username,
-                    server.password
-                )
-            }
-        }
+        // 不再通过 Intent 传密码，Service 通过 Hilt 注入的 Repository 从 SecureStorage 读取
+        NtfyService.start(this@MainActivity)
     }
 
     override fun onResume() {
