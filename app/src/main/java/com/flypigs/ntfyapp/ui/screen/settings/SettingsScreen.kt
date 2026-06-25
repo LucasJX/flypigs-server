@@ -131,7 +131,7 @@ fun SettingsScreen(
             ),
             OptimizationItem(
                 title = "忽略电池优化",
-                description = "允许应用在后台运行",
+                description = "允许应用在后台运行，避免被系统杀掉",
                 icon = Icons.Default.BatteryChargingFull,
                 check = { ctx ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -141,13 +141,28 @@ fun SettingsScreen(
                 },
                 action = { ctx ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        // HyperOS 2.0+ / SecurityCenter 电量管理
                         try {
-                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                data = Uri.parse("package:${'$'}{ctx.packageName}")
-                            }
-                            ctx.startActivity(intent)
+                            ctx.startActivity(Intent().apply {
+                                setClassName("com.miui.securitycenter", "com.miui.powercenter.PowerCenterActivity")
+                                putExtra("package_name", ctx.packageName)
+                            })
                         } catch (_: Exception) {
-                            ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                            // HyperOS 1.x / MIUI PowerKeeper
+                            try {
+                                ctx.startActivity(Intent().apply {
+                                    setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                                })
+                            } catch (_: Exception) {
+                                // 原生 Android 兜底
+                                try {
+                                    ctx.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                                } catch (_: Exception) {
+                                    ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.parse("package:${ctx.packageName}")
+                                    })
+                                }
+                            }
                         }
                     }
                 }
