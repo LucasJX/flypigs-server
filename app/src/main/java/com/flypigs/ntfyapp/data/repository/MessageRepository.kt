@@ -67,7 +67,7 @@ class MessageRepository @Inject constructor(
             tags = ntfyMessage.tags?.joinToString(","),
             timestamp = ntfyMessage.time,
             isRead = false,
-            category = category.name
+            category = category
         )
         messageDao.insertMessage(entity)
         return entity
@@ -132,17 +132,19 @@ class MessageRepository @Inject constructor(
     /**
      * 根据 tags 自动分类消息
      */
-    private fun classifyMessage(tags: List<String>?): MessageCategory {
-        if (tags.isNullOrEmpty()) return MessageCategory.OTHER
+    private fun classifyMessage(tags: List<String>?): String {
+        if (tags.isNullOrEmpty()) return "OTHER"
 
         val tagSet = tags.map { it.lowercase() }.toSet()
 
         return when {
-            tagSet.any { it in listOf("node", "change", "上线", "下线") } -> MessageCategory.NODE_CHANGE
-            tagSet.any { it in listOf("alert", "warning", "error", "故障") } -> MessageCategory.SYSTEM_ALERT
-            tagSet.any { it in listOf("recovery", "ok", "恢复", "正常") } -> MessageCategory.RECOVERY
-            tagSet.any { it in listOf("update", "release", "版本") } -> MessageCategory.UPDATE
-            else -> MessageCategory.OTHER
+            tagSet.any { it in listOf("node", "change", "上线", "下线") } -> "NODE_CHANGE"
+            tagSet.any { it in listOf("alert", "warning", "error", "故障") } -> "SYSTEM_ALERT"
+            tagSet.any { it in listOf("recovery", "ok", "恢复", "正常") } -> "RECOVERY"
+            tagSet.any { it in listOf("update", "release", "版本") } -> "UPDATE"
+            tagSet.any { it in listOf("device", "设备") } -> "DEVICE"
+            tagSet.any { it in listOf("sub", "subscription", "订阅") } -> "SUBSCRIPTION"
+            else -> "OTHER"
         }
     }
 }

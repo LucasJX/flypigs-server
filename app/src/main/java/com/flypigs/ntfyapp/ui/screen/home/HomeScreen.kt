@@ -100,14 +100,19 @@ fun HomeScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = {
-                            val currentIds = when {
-                                needsCombined -> combinedMessages.map { it.id }
-                                isSearching && searchQuery.isNotBlank() -> searchMessages.map { it.id }
-                                else -> emptyList()
-                            }
-                            viewModel.selectAll(currentIds)
-                        }) {
+                        // 全选按钮（仅搜索/组合筛选模式可用）
+                        val canSelectAll = needsCombined || (isSearching && searchQuery.isNotBlank())
+                        IconButton(
+                            onClick = {
+                                val currentIds = when {
+                                    needsCombined -> combinedMessages.map { it.id }
+                                    isSearching -> searchMessages.map { it.id }
+                                    else -> emptyList()
+                                }
+                                viewModel.selectAll(currentIds)
+                            },
+                            enabled = canSelectAll
+                        ) {
                             Icon(Icons.Default.SelectAll, contentDescription = "全选")
                         }
                         IconButton(

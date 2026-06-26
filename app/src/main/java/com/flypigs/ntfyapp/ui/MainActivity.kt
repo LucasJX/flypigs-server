@@ -92,10 +92,7 @@ class MainActivity : ComponentActivity() {
 
                 val drawerHolder = LocalDrawerState.current
                 val isHome = currentRoute == "home"
-                val drawerState = rememberDrawerState(
-                    initialValue = DrawerValue.Closed,
-                    confirmStateChange = { isHome }  // 只有首页允许操作 drawer
-                )
+                val drawerState = rememberDrawerState(DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
 
                 drawerHolder.value = drawerHolder.value.copy(
@@ -106,6 +103,7 @@ class MainActivity : ComponentActivity() {
                 // 底部栏覆盖已确认 OK
                 ModalNavigationDrawer(
                     drawerState = drawerState,
+                    gesturesEnabled = isHome,  // 只有首页允许手势
                     drawerContent = {
                         Box(
                             modifier = Modifier

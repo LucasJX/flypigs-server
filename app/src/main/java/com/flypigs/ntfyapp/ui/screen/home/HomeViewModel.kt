@@ -38,6 +38,8 @@ val DEFAULT_CATEGORY_MAP = mapOf(
     "SYSTEM_ALERT" to DynamicCategory("SYSTEM_ALERT", "系统告警", Icons.Default.Warning, Color(0xFFD32F2F)),
     "RECOVERY" to DynamicCategory("RECOVERY", "恢复通知", Icons.Default.CheckCircle, Color(0xFF388E3C)),
     "UPDATE" to DynamicCategory("UPDATE", "更新通知", Icons.Default.Inventory2, Color(0xFFF57C00)),
+    "DEVICE" to DynamicCategory("DEVICE", "设备监控", Icons.Default.Devices, Color(0xFF00897B)),
+    "SUBSCRIPTION" to DynamicCategory("SUBSCRIPTION", "订阅提醒", Icons.Default.CardMembership, Color(0xFF7B1FA2)),
     "OTHER" to DynamicCategory("OTHER", "其他", Icons.Default.ChatBubbleOutline, Color(0xFF757575))
 )
 
