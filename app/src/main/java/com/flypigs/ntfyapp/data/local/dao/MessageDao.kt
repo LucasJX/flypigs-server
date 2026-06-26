@@ -53,6 +53,9 @@ interface MessageDao {
     @Query("SELECT category, COUNT(*) as count FROM messages GROUP BY category")
     fun getCategoryStats(): Flow<List<CategoryCount>>
 
+    @Query("SELECT DISTINCT category FROM messages ORDER BY category")
+    fun getDistinctCategories(): Flow<List<String>>
+
     @Query("SELECT topic, COUNT(*) as count FROM messages GROUP BY topic ORDER BY count DESC")
     fun getTopicStats(): Flow<List<TopicCount>>
 

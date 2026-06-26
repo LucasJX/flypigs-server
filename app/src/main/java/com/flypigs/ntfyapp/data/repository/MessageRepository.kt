@@ -96,6 +96,9 @@ class MessageRepository @Inject constructor(
     fun getCategoryStats() =
         messageDao.getCategoryStats().distinctUntilChanged()
 
+    fun getDistinctCategories() =
+        messageDao.getDistinctCategories().distinctUntilChanged()
+
     fun getTopicStats() =
         messageDao.getTopicStats().distinctUntilChanged()
 

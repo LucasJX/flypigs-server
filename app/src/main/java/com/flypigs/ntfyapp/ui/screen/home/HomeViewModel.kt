@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.flypigs.ntfyapp.data.local.dao.CategoryCount
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.data.local.entity.TopicEntity
@@ -17,6 +21,32 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class MessageTab { ALL, UNREAD }
+
+/**
+ * 动态分类信息 — 数据库实际存在的分类
+ */
+data class DynamicCategory(
+    val name: String,
+    val displayName: String,
+    val icon: ImageVector,
+    val color: Color
+)
+
+// 默认分类映射
+val DEFAULT_CATEGORY_MAP = mapOf(
+    "NODE_CHANGE" to DynamicCategory("NODE_CHANGE", "节点变更", Icons.Default.SwapHoriz, Color(0xFF1976D2)),
+    "SYSTEM_ALERT" to DynamicCategory("SYSTEM_ALERT", "系统告警", Icons.Default.Warning, Color(0xFFD32F2F)),
+    "RECOVERY" to DynamicCategory("RECOVERY", "恢复通知", Icons.Default.CheckCircle, Color(0xFF388E3C)),
+    "UPDATE" to DynamicCategory("UPDATE", "更新通知", Icons.Default.Inventory2, Color(0xFFF57C00)),
+    "OTHER" to DynamicCategory("OTHER", "其他", Icons.Default.ChatBubbleOutline, Color(0xFF757575))
+)
+
+fun unknownCategory(name: String) = DynamicCategory(
+    name = name,
+    displayName = name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
+    icon = Icons.Default.Label,
+    color = Color(0xFF9E9E9E)
+)
 
 /**
  * 列表模式：Paging（非搜索） vs Flow<List>（搜索/组合筛选）
@@ -104,6 +134,15 @@ class HomeViewModel @Inject constructor(
     val topics: StateFlow<List<TopicEntity>> = topicRepository.getEnabledTopics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // 动态分类列表
+    val dynamicCategories: StateFlow<List<DynamicCategory>> = repository.getDistinctCategories()
+        .map { categories ->
+            categories.map { name ->
+                DEFAULT_CATEGORY_MAP[name] ?: unknownCategory(name)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     // 全局分类统计
     val categoryStats: StateFlow<List<CategoryCount>> = repository.getCategoryStats()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -129,8 +168,10 @@ class HomeViewModel @Inject constructor(
         .map { list -> list.associate { it.topic to it.count } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    fun selectCategory(category: MessageCategory?) {
-        _selectedCategory.value = category
+    fun selectCategory(categoryName: String?) {
+        _selectedCategory.value = categoryName?.let { name ->
+            try { MessageCategory.valueOf(name) } catch (_: Exception) { null }
+        }
         _selectedTab.value = MessageTab.ALL
     }
 
@@ -170,6 +211,42 @@ class HomeViewModel @Inject constructor(
     fun deleteMessage(id: String) {
         viewModelScope.launch {
             repository.deleteMessage(id)
+        }
+    }
+
+    // ── 批量选择模式 ──────────────────────────────────────────────
+    private val _isBatchMode = MutableStateFlow(false)
+    val isBatchMode: StateFlow<Boolean> = _isBatchMode.asStateFlow()
+
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
+
+    fun enterBatchMode(initialId: String? = null) {
+        _isBatchMode.value = true
+        _selectedIds.value = initialId?.let { setOf(it) } ?: emptySet()
+    }
+
+    fun exitBatchMode() {
+        _isBatchMode.value = false
+        _selectedIds.value = emptySet()
+    }
+
+    fun toggleSelection(id: String) {
+        _selectedIds.value = _selectedIds.value.let { ids ->
+            if (id in ids) ids - id else ids + id
+        }
+    }
+
+    fun selectAll(currentIds: List<String>) {
+        _selectedIds.value = currentIds.toSet()
+    }
+
+    fun deleteSelected() {
+        val ids = _selectedIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            ids.forEach { repository.deleteMessage(it) }
+            exitBatchMode()
         }
     }
 

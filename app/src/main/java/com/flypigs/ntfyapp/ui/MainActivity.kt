@@ -91,7 +91,11 @@ class MainActivity : ComponentActivity() {
                 val showBottomBar = currentRoute in mainScreens
 
                 val drawerHolder = LocalDrawerState.current
-                val drawerState = rememberDrawerState(DrawerValue.Closed)
+                val isHome = currentRoute == "home"
+                val drawerState = rememberDrawerState(
+                    initialValue = DrawerValue.Closed,
+                    confirmStateChange = { isHome }  // 只有首页允许操作 drawer
+                )
                 val scope = rememberCoroutineScope()
 
                 drawerHolder.value = drawerHolder.value.copy(

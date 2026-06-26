@@ -8,6 +8,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,6 +52,9 @@ fun HomeScreen(
     val topicUnreadCounts by viewModel.topicUnreadCounts.collectAsState()
     val listMode by viewModel.listMode.collectAsState()
     val needsCombined by viewModel.needsCombinedFilter.collectAsState()
+    val isBatchMode by viewModel.isBatchMode.collectAsState()
+    val selectedIds by viewModel.selectedIds.collectAsState()
+    val dynamicCategories by viewModel.dynamicCategories.collectAsState()
 
     // Paging 数据
     val pagingItems: LazyPagingItems<MessageEntity> = viewModel.pagingMessages.collectAsLazyPagingItems()
@@ -68,7 +74,7 @@ fun HomeScreen(
                     totalCount = totalCount,
                     topicUnreadCounts = topicUnreadCounts,
                     selectedTopic = selectedTopic,
-                    selectedCategory = selectedCategory,
+                    selectedCategory = selectedCategory?.name,
                     selectedTab = selectedTab,
                     onSelectTopic = { topic ->
                         viewModel.selectTopic(topic)
@@ -84,34 +90,65 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            val subtitle = when {
-                selectedTopic != null && selectedCategory != null ->
-                    "${selectedCategory!!.displayName}"
-                selectedTopic != null -> {
-                    val topicName = topics.find { it.name == selectedTopic }?.displayName ?: selectedTopic!!
-                    topicName
-                }
-                else -> null
-            }
-            CenteredTopAppBar(
-                title = "事件中心",
-                subtitle = subtitle,
-                navigationIcon = {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "菜单")
-                    }
-                },
-                actions = {
-                    if (unreadCount > 0) {
-                        IconButton(onClick = { viewModel.markAllAsRead() }) {
-                            Icon(Icons.Default.DoneAll, contentDescription = "全部已读")
+            if (isBatchMode) {
+                // 批量模式顶栏
+                TopAppBar(
+                    title = { Text("已选 ${selectedIds.size} 项") },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.exitBatchMode() }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "退出批量模式")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            val currentIds = when {
+                                needsCombined -> combinedMessages.map { it.id }
+                                isSearching && searchQuery.isNotBlank() -> searchMessages.map { it.id }
+                                else -> emptyList()
+                            }
+                            viewModel.selectAll(currentIds)
+                        }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "全选")
+                        }
+                        IconButton(
+                            onClick = { viewModel.deleteSelected() },
+                            enabled = selectedIds.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "删除")
                         }
                     }
-                    IconButton(onClick = { viewModel.toggleSearch() }) {
-                        Icon(Icons.Default.Search, contentDescription = "搜索")
+                )
+            } else {
+                // 普通模式顶栏
+                val subtitle = when {
+                    selectedTopic != null && selectedCategory != null ->
+                        "${selectedCategory!!.displayName}"
+                    selectedTopic != null -> {
+                        val topicName = topics.find { it.name == selectedTopic }?.displayName ?: selectedTopic!!
+                        topicName
                     }
+                    else -> null
                 }
-            )
+                CenteredTopAppBar(
+                    title = "事件中心",
+                    subtitle = subtitle,
+                    navigationIcon = {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(Icons.Default.Menu, contentDescription = "菜单")
+                        }
+                    },
+                    actions = {
+                        if (unreadCount > 0) {
+                            IconButton(onClick = { viewModel.markAllAsRead() }) {
+                                Icon(Icons.Default.DoneAll, contentDescription = "全部已读")
+                            }
+                        }
+                        IconButton(onClick = { viewModel.toggleSearch() }) {
+                            Icon(Icons.Default.Search, contentDescription = "搜索")
+                        }
+                    }
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -164,8 +201,9 @@ fun HomeScreen(
 
             // 分类筛选 ScrollableTabRow（仅全部消息 Tab 下显示）
             if (selectedTab == MessageTab.ALL) {
+                val categoryNames = dynamicCategories.map { it.name }
                 ScrollableTabRow(
-                    selectedTabIndex = if (selectedCategory == null) 0 else MessageCategory.entries.indexOf(selectedCategory) + 1,
+                    selectedTabIndex = if (selectedCategory == null) 0 else (categoryNames.indexOf(selectedCategory?.name) + 1).coerceAtLeast(0),
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.primary,
                     edgePadding = 16.dp
@@ -175,12 +213,12 @@ fun HomeScreen(
                         onClick = { viewModel.selectCategory(null) },
                         text = { Text("全部") }
                     )
-                    MessageCategory.entries.forEach { category ->
+                    dynamicCategories.forEach { category ->
                         Tab(
-                            selected = selectedCategory == category,
+                            selected = selectedCategory?.name == category.name,
                             onClick = {
                                 viewModel.selectCategory(
-                                    if (selectedCategory == category) null else category
+                                    if (selectedCategory?.name == category.name) null else category.name
                                 )
                             },
                             text = { Text(category.displayName) },

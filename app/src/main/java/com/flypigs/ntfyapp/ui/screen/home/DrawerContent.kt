@@ -23,7 +23,7 @@ fun DrawerContent(
     totalCount: Int,
     topicUnreadCounts: Map<String, Int>,
     selectedTopic: String?,
-    selectedCategory: com.flypigs.ntfyapp.domain.model.MessageCategory?,
+    selectedCategory: String?,
     selectedTab: MessageTab,
     onSelectTopic: (String?) -> Unit,
     modifier: Modifier = Modifier
