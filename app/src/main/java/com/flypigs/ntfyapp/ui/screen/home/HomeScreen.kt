@@ -245,7 +245,11 @@ fun HomeScreen(
                     FlowListMessageList(
                         messages = items,
                         onNavigateToDetail = onNavigateToDetail,
-                        onMarkAsRead = { viewModel.markAsRead(it) }
+                        onMarkAsRead = { viewModel.markAsRead(it) },
+                        isBatchMode = isBatchMode,
+                        selectedIds = selectedIds,
+                        onEnterBatchMode = { viewModel.enterBatchMode(it) },
+                        onToggleSelection = { viewModel.toggleSelection(it) }
                     )
                 }
             } else if (isSearching && searchQuery.isNotBlank()) {
@@ -257,7 +261,11 @@ fun HomeScreen(
                     FlowListMessageList(
                         messages = items,
                         onNavigateToDetail = onNavigateToDetail,
-                        onMarkAsRead = { viewModel.markAsRead(it) }
+                        onMarkAsRead = { viewModel.markAsRead(it) },
+                        isBatchMode = isBatchMode,
+                        selectedIds = selectedIds,
+                        onEnterBatchMode = { viewModel.enterBatchMode(it) },
+                        onToggleSelection = { viewModel.toggleSelection(it) }
                     )
                 }
             } else {
@@ -265,7 +273,11 @@ fun HomeScreen(
                 PagingMessageList(
                     pagingItems = pagingItems,
                     onNavigateToDetail = onNavigateToDetail,
-                    onMarkAsRead = { viewModel.markAsRead(it) }
+                    onMarkAsRead = { viewModel.markAsRead(it) },
+                    isBatchMode = isBatchMode,
+                    selectedIds = selectedIds,
+                    onEnterBatchMode = { viewModel.enterBatchMode(it) },
+                    onToggleSelection = { viewModel.toggleSelection(it) }
                 )
             }
         }
@@ -277,7 +289,11 @@ fun HomeScreen(
 private fun PagingMessageList(
     pagingItems: LazyPagingItems<MessageEntity>,
     onNavigateToDetail: (String) -> Unit,
-    onMarkAsRead: (String) -> Unit
+    onMarkAsRead: (String) -> Unit,
+    isBatchMode: Boolean = false,
+    selectedIds: Set<String> = emptySet(),
+    onEnterBatchMode: (String) -> Unit = {},
+    onToggleSelection: (String) -> Unit = {}
 ) {
     when (pagingItems.loadState.refresh) {
         is LoadState.Loading -> {
@@ -321,9 +337,16 @@ private fun PagingMessageList(
                             MessageCard(
                                 message = message,
                                 onClick = {
-                                    onMarkAsRead(message.id)
-                                    onNavigateToDetail(message.id)
-                                }
+                                    if (isBatchMode) {
+                                        onToggleSelection(message.id)
+                                    } else {
+                                        onMarkAsRead(message.id)
+                                        onNavigateToDetail(message.id)
+                                    }
+                                },
+                                onLongClick = { onEnterBatchMode(message.id) },
+                                isBatchMode = isBatchMode,
+                                isSelected = message.id in selectedIds
                             )
                         }
                     }
@@ -365,7 +388,11 @@ private fun PagingMessageList(
 private fun FlowListMessageList(
     messages: List<MessageEntity>,
     onNavigateToDetail: (String) -> Unit,
-    onMarkAsRead: (String) -> Unit
+    onMarkAsRead: (String) -> Unit,
+    isBatchMode: Boolean = false,
+    selectedIds: Set<String> = emptySet(),
+    onEnterBatchMode: (String) -> Unit = {},
+    onToggleSelection: (String) -> Unit = {}
 ) {
     LazyColumn {
         itemsIndexed(
@@ -390,9 +417,16 @@ private fun FlowListMessageList(
                 MessageCard(
                     message = message,
                     onClick = {
-                        onMarkAsRead(message.id)
-                        onNavigateToDetail(message.id)
-                    }
+                        if (isBatchMode) {
+                            onToggleSelection(message.id)
+                        } else {
+                            onMarkAsRead(message.id)
+                            onNavigateToDetail(message.id)
+                        }
+                    },
+                    onLongClick = { onEnterBatchMode(message.id) },
+                    isBatchMode = isBatchMode,
+                    isSelected = message.id in selectedIds
                 )
             }
         }
