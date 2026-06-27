@@ -23,7 +23,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.activity.compose.BackHandler
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
+import com.flypigs.ntfyapp.ui.LocalBatchMode
 import com.flypigs.ntfyapp.domain.model.MessageCategory
 import com.flypigs.ntfyapp.ui.LocalDrawerState
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
@@ -55,6 +57,14 @@ fun HomeScreen(
     val isBatchMode by viewModel.isBatchMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val dynamicCategories by viewModel.dynamicCategories.collectAsState()
+
+    // 提供批量模式状态给 MainActivity
+    CompositionLocalProvider(LocalBatchMode provides isBatchMode) {
+
+    // 返回键处理：批量模式下先退出批量模式
+    BackHandler(enabled = isBatchMode) {
+        viewModel.exitBatchMode()
+    }
 
     // Paging 数据
     val pagingItems: LazyPagingItems<MessageEntity> = viewModel.pagingMessages.collectAsLazyPagingItems()
@@ -100,19 +110,18 @@ fun HomeScreen(
                         }
                     },
                     actions = {
-                        // 全选按钮（仅搜索/组合筛选模式可用）
-                        val canSelectAll = needsCombined || (isSearching && searchQuery.isNotBlank())
-                        IconButton(
-                            onClick = {
-                                val currentIds = when {
-                                    needsCombined -> combinedMessages.map { it.id }
-                                    isSearching -> searchMessages.map { it.id }
-                                    else -> emptyList()
+                        // 全选按钮
+                        IconButton(onClick = {
+                            val currentIds = when {
+                                needsCombined -> combinedMessages.map { it.id }
+                                isSearching && searchQuery.isNotBlank() -> searchMessages.map { it.id }
+                                else -> {
+                                    // Paging 模式：选当前加载的
+                                    (0 until pagingItems.itemCount).mapNotNull { pagingItems[it]?.id }
                                 }
-                                viewModel.selectAll(currentIds)
-                            },
-                            enabled = canSelectAll
-                        ) {
+                            }
+                            viewModel.selectAll(currentIds)
+                        }) {
                             Icon(Icons.Default.SelectAll, contentDescription = "全选")
                         }
                         IconButton(
@@ -287,6 +296,8 @@ fun HomeScreen(
             }
         }
     }
+
+    } // CompositionLocalProvider
 }
 
 // ── Paging 消息列表 ──────────────────────────────────────────

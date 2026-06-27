@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.activity.OnBackPressedCallback
 import com.flypigs.ntfyapp.service.NtfyService
 import com.flypigs.ntfyapp.ui.navigation.BottomNavBar
 import com.flypigs.ntfyapp.ui.navigation.NtfyNavGraph
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val prefs = remember { getSharedPreferences("ntfy_prefs", MODE_PRIVATE) }
+            val isBatchMode = LocalBatchMode.current
             var themeMode by remember {
                 val saved = prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM"
                 mutableStateOf(try { ThemeMode.valueOf(saved) } catch (_: Exception) { ThemeMode.SYSTEM })
@@ -103,7 +105,7 @@ class MainActivity : ComponentActivity() {
                 // 底部栏覆盖已确认 OK
                 ModalNavigationDrawer(
                     drawerState = drawerState,
-                    gesturesEnabled = isHome,  // 只有首页允许手势
+                    gesturesEnabled = isHome && !isBatchMode,  // 首页非批量模式时允许手势
                     drawerContent = {
                         Box(
                             modifier = Modifier
