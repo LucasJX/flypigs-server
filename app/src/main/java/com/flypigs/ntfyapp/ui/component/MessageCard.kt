@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,13 +44,39 @@ fun MessageCard(
         CategoryRegistry.getCategory("其他")
     }
 
-    // ─── 优先级样式定义 ────────────────────────────────────
+    val isDark = isSystemInDarkTheme()
+
+    // ─── 优先级样式定义（自适应暗色模式）────────────────────
     val (borderColor, backgroundColor) = when (message.priority) {
-        5 -> Pair(Color(0xFFD32F2F), Color(0xFFFFEBEE))   // 紧急: 深红边框 + 淡红背景
-        4 -> Pair(Color(0xFFFF6F00), Color(0xFFFFF3E0))   // 高: 橙色边框 + 淡橙背景
-        1, 2 -> Pair(Color(0xFFE0E0E0), Color(0xFFF5F5F5)) // 低: 灰色边框 + 浅灰背景
-        else -> Pair(null, Color.White)                     // 默认: 无边框 + 白色背景
+        5 -> if (isDark) {
+            Pair(Color(0xFFEF5350), Color(0xFF2D1515))   // 紧急暗色: 红边框 + 深红背景
+        } else {
+            Pair(Color(0xFFD32F2F), Color(0xFFFFEBEE))   // 紧急亮色
+        }
+        4 -> if (isDark) {
+            Pair(Color(0xFFFFA726), Color(0xFF2D2010))   // 高暗色: 橙边框 + 深橙背景
+        } else {
+            Pair(Color(0xFFFF6F00), Color(0xFFFFF3E0))   // 高亮色
+        }
+        1, 2 -> if (isDark) {
+            Pair(Color(0xFF616161), Color(0xFF212121))    // 低暗色
+        } else {
+            Pair(Color(0xFFE0E0E0), Color(0xFFF5F5F5))   // 低亮色
+        }
+        else -> if (isDark) {
+            Pair(null, MaterialTheme.colorScheme.surfaceContainerLow)  // 默认暗色
+        } else {
+            Pair(null, Color.White)                                      // 默认亮色
+        }
     }
+
+    // ─── 已读/未读区分 ─────────────────────────────────
+    val titleColor = if (message.isRead) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+    val titleWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold
 
     val shape = RoundedCornerShape(12.dp)
 
@@ -60,6 +87,9 @@ fun MessageCard(
             .then(
                 if (borderColor != null) {
                     Modifier.border(1.5.dp, borderColor, shape)
+                } else if (!message.isRead) {
+                    // 未读消息加左边竖线指示
+                    Modifier
                 } else {
                     Modifier
                 }
@@ -85,6 +115,23 @@ fun MessageCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
+
+            // 未读指示点
+            if (!message.isRead && !isBatchMode) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = CircleShape
+                        )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else if (!isBatchMode) {
+                // 已读占位，保持对齐
+                Spacer(modifier = Modifier.width(16.dp))
+            }
+
             // 分类图标
             Box(
                 modifier = Modifier
@@ -110,7 +157,8 @@ fun MessageCard(
                 Text(
                     text = message.title ?: message.topic,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = if (!message.isRead) FontWeight.Bold else FontWeight.Normal,
+                    fontWeight = titleWeight,
+                    color = titleColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -120,7 +168,11 @@ fun MessageCard(
                     Text(
                         text = parseMarkdown(message.body.take(100)),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (message.isRead) {
+                            MaterialTheme.colorScheme.outline
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
