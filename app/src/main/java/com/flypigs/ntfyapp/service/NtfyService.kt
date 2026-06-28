@@ -258,9 +258,8 @@ class NtfyService : Service() {
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java)
 
-        // 删除旧渠道（强制重建，确保设置生效）
-        manager.deleteNotificationChannel(CHANNEL_ID)
-        manager.deleteNotificationChannel(MESSAGE_CHANNEL_ID)
+        // 不删除旧渠道 — Android 禁止删除正在被前台服务使用的渠道
+        // createNotificationChannel 是幂等的，已存在则跳过
 
         val serviceChannel = NotificationChannel(
             CHANNEL_ID,
