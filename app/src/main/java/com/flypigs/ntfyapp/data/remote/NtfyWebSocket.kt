@@ -108,6 +108,7 @@ class NtfyWebSocket(
                 isConnecting = false
                 isConnected = false
                 reconnectScope.launch { onConnectionChanged?.invoke(false) }
+                scheduleReconnect()  // 服务器主动关闭时也要重连
             }
         })
     }
@@ -149,9 +150,18 @@ class NtfyWebSocket(
     }
 
     private fun scheduleReconnect() {
+        // 取消旧的重连任务，防止并发
+        reconnectJob?.cancel()
+
         if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-            Log.w(TAG, "Max reconnect attempts reached ($MAX_RECONNECT_ATTEMPTS), stopping")
+            // 不永久放弃，等 5 分钟后重置重连计数再试
+            Log.w(TAG, "Max reconnect attempts reached, will retry in 5 minutes")
             reconnectScope.launch { onConnectionChanged?.invoke(false) }
+            reconnectJob = reconnectScope.launch {
+                delay(5 * 60 * 1000L)
+                reconnectAttempt = 0
+                connect()
+            }
             return
         }
         val delayMs = RECONNECT_DELAYS[reconnectAttempt.coerceAtMost(RECONNECT_DELAYS.size - 1)]

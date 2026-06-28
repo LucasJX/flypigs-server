@@ -93,6 +93,10 @@ interface MessageDao {
     @Query("SELECT * FROM messages ORDER BY timestamp DESC LIMIT 1")
     fun getLatestMessage(): Flow<MessageEntity?>
 
+    // ─── 历史消息同步：获取指定 topic 最后一条消息的时间戳（Unix 秒） ──
+    @Query("SELECT MAX(timestamp) FROM messages WHERE topic = :topic")
+    suspend fun getLatestTimestampForTopic(topic: String): Long?
+
     // ─── 分页查询 ────────────────────────────────────────────
     @Query("SELECT * FROM messages ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
     suspend fun getMessagesPaged(limit: Int, offset: Int): List<MessageEntity>

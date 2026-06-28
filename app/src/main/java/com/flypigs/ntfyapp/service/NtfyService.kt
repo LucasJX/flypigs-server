@@ -13,7 +13,9 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.flypigs.ntfyapp.R
 import com.flypigs.ntfyapp.data.local.SecureStorage
+import com.flypigs.ntfyapp.data.local.entity.ServerEntity
 import com.flypigs.ntfyapp.data.local.entity.TopicEntity
+import com.flypigs.ntfyapp.data.remote.NtfyApi
 import com.flypigs.ntfyapp.data.remote.NtfyMessage
 import com.flypigs.ntfyapp.data.remote.NtfyWebSocket
 import com.flypigs.ntfyapp.data.repository.MessageRepository
@@ -63,6 +65,7 @@ class NtfyService : Service() {
     @Inject lateinit var messageRepository: MessageRepository
     @Inject lateinit var serverRepository: ServerRepository
     @Inject lateinit var topicRepository: TopicRepository
+    @Inject lateinit var ntfyApi: NtfyApi
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val connections = mutableMapOf<String, NtfyWebSocket>()  // key: "serverId:topicName"
@@ -148,9 +151,13 @@ class NtfyService : Service() {
                     val password = SecureStorage.getPassword(server.id)
                     val key = "${server.id}:${topic.name}"
 
-                    if (connections.containsKey(key)) {
+                    // 检查是否已有活跃连接（断开的连接需要清理）
+                    val existing = connections[key]
+                    if (existing != null && existing.isConnected) {
                         continue  // 已连接，跳过
                     }
+                    // 清理断开的连接
+                    existing?.disconnect()
 
                     val ws = NtfyWebSocket(
                         serverUrl = server.url,
@@ -174,12 +181,62 @@ class NtfyService : Service() {
                     connections[key] = ws
                     ws.connect()
                     Log.d(TAG, "Connecting to ${server.url}/${topic.name}")
+
+                    // 拉取历史消息 — 补偿 WebSocket 断连期间漏掉的消息
+                    serviceScope.launch {
+                        syncHistoryForTopic(server, topic)
+                    }
                 }
 
                 Log.d(TAG, "Total connections: ${connections.size}")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to connect topics", e)
             }
+        }
+    }
+
+    /**
+     * 拉取历史消息 — 补偿 WebSocket 断连期间漏掉的消息
+     * 从本地数据库最后一条消息的时间戳开始拉取
+     */
+    private suspend fun syncHistoryForTopic(server: ServerEntity, topic: TopicEntity) {
+        try {
+            val password = SecureStorage.getPassword(server.id)
+
+            // 获取本地最后一条消息的时间戳（秒）
+            val lastTimestamp = messageRepository.getLatestMessageTimestampForTopic(topic.name)
+            // 从最后一条消息前 1 分钟开始拉取，避免边界遗漏
+            val since = if (lastTimestamp > 0) lastTimestamp - 60 else 0
+
+            Log.d(TAG, "Syncing history for ${topic.name} since=$since (lastLocal=$lastTimestamp)")
+
+            val history = ntfyApi.fetchHistory(
+                serverUrl = server.url,
+                topic = topic.name,
+                since = since,
+                username = server.username,
+                password = password
+            )
+
+            if (history.isEmpty()) {
+                Log.d(TAG, "No historical messages for ${topic.name}")
+                return
+            }
+
+            var inserted = 0
+            for (msg in history) {
+                try {
+                    messageRepository.insertMessage(msg)
+                    inserted++
+                } catch (e: Exception) {
+                    // 重复消息会触发唯一约束冲突，静默跳过
+                    Log.d(TAG, "Skipping duplicate message: ${msg.id}")
+                }
+            }
+
+            Log.d(TAG, "History sync complete for ${topic.name}: $inserted/${history.size} inserted")
+        } catch (e: Exception) {
+            Log.e(TAG, "History sync failed for ${topic.name}", e)
         }
     }
 

@@ -129,6 +129,13 @@ class MessageRepository @Inject constructor(
         messageDao.getLatestMessage().distinctUntilChanged()
 
     /**
+     * 获取指定 topic 最后一条消息的时间戳（Unix 秒）
+     * 用于历史消息同步的 since 参数
+     */
+    suspend fun getLatestMessageTimestampForTopic(topic: String): Long =
+        messageDao.getLatestTimestampForTopic(topic) ?: 0
+
+    /**
      * 根据 tags 自动分类消息
      * 优先识别 ec:xxx 标签（插件端明确标注的分类）
      */
