@@ -128,7 +128,7 @@ class NtfyWebSocket(
                     topic = json.get("topic")?.asString ?: this.topic,
                     title = json.get("title")?.asString,
                     message = json.get("message")?.asString ?: "",
-                    priority = json.get("priority")?.asInt ?: 3,
+                    priorityRaw = json.get("priority"),
                     tags = json.get("tags")?.asJsonArray?.mapNotNull { it?.asString },
                     time = json.get("time")?.asLong ?: System.currentTimeMillis()
                 )
@@ -161,6 +161,30 @@ class NtfyWebSocket(
             delay(delayMs)
             reconnectAttempt++
             connect()
+        }
+    }
+
+    /**
+     * 解析 ntfy priority，支持整数和字符串格式
+     * ntfy 格式: 1-5 或 "min"/"low"/"default"/"high"/"urgent"
+     */
+    private fun parsePriority(priorityElement: com.google.gson.JsonElement?): Int {
+        if (priorityElement == null) return 3
+
+        // 尝试整数
+        try {
+            val intValue = priorityElement.asInt
+            if (intValue in 1..5) return intValue
+        } catch (_: Exception) {}
+
+        // 尝试字符串
+        return when (priorityElement.asString?.lowercase()) {
+            "min" -> 1
+            "low" -> 2
+            "default" -> 3
+            "high" -> 4
+            "urgent" -> 5
+            else -> 3
         }
     }
 }

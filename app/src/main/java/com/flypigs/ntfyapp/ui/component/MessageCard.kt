@@ -1,12 +1,14 @@
 package com.flypigs.ntfyapp.ui.component
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -14,12 +16,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
-import com.flypigs.ntfyapp.domain.model.MessageCategory
+import com.flypigs.ntfyapp.domain.model.CategoryRegistry
 import com.flypigs.ntfyapp.util.parseMarkdown
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -35,40 +38,38 @@ fun MessageCard(
     isSelected: Boolean = false
 ) {
     val category = try {
-        MessageCategory.valueOf(message.category)
-    } catch (e: Exception) {
-        MessageCategory.OTHER
+        CategoryRegistry.getCategory(message.category)
+    } catch (_: Exception) {
+        CategoryRegistry.getCategory("其他")
     }
 
-    // ─── 优先级视觉区分 ────────────────────────────────────
-    val priorityIndicatorColor = when (message.priority) {
-        5 -> MaterialTheme.colorScheme.error                  // 紧急: 红
-        4 -> MaterialTheme.colorScheme.error.copy(alpha=0.7f) // 高: 淡红
-        1 -> MaterialTheme.colorScheme.outlineVariant         // 最低: 灰
-        2 -> MaterialTheme.colorScheme.outlineVariant         // 低: 灰
-        else -> null                                           // 默认: 无
+    // ─── 优先级样式定义 ────────────────────────────────────
+    val (borderColor, backgroundColor) = when (message.priority) {
+        5 -> Pair(Color(0xFFD32F2F), Color(0xFFFFEBEE))   // 紧急: 深红边框 + 淡红背景
+        4 -> Pair(Color(0xFFFF6F00), Color(0xFFFFF3E0))   // 高: 橙色边框 + 淡橙背景
+        1, 2 -> Pair(Color(0xFFE0E0E0), Color(0xFFF5F5F5)) // 低: 灰色边框 + 浅灰背景
+        else -> Pair(null, Color.White)                     // 默认: 无边框 + 白色背景
     }
 
-    Card(
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .then(
+                if (borderColor != null) {
+                    Modifier.border(1.5.dp, borderColor, shape)
+                } else {
+                    Modifier
+                }
+            )
+            .clip(shape)
+            .background(backgroundColor)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
-            ),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = if (priorityIndicatorColor != null)
-                priorityIndicatorColor!!.copy(alpha = 0.05f)
-            else MaterialTheme.colorScheme.surface
-        ),
-        border = if (priorityIndicatorColor != null) {
-            BorderStroke(2.dp, SolidColor(priorityIndicatorColor!!))
-        } else null,
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (message.isRead) 0.dp else 2.dp
-        )
+            )
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -106,17 +107,13 @@ fun MessageCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 // 标题行
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = message.title ?: message.topic,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (!message.isRead) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = message.title ?: message.topic,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (!message.isRead) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
                 // 摘要
                 if (message.body.isNotBlank()) {
@@ -135,7 +132,6 @@ fun MessageCard(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 时间
                     Text(
                         text = formatTime(message.timestamp),
                         style = MaterialTheme.typography.labelSmall,
@@ -144,7 +140,6 @@ fun MessageCard(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // 来源徽章 (Source Badge)
                     SourceBadge(topic = message.topic)
                 }
             }
@@ -152,10 +147,6 @@ fun MessageCard(
     }
 }
 
-/**
- * 来源徽章 - 显示消息来源 topic
- * 使用 M3 surfaceContainerLow 背景 + 16dp 圆角 (Chip 规范)
- */
 @Composable
 private fun SourceBadge(topic: String) {
     Surface(

@@ -16,7 +16,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.data.local.dao.CategoryCount
-import com.flypigs.ntfyapp.domain.model.MessageCategory
+import com.flypigs.ntfyapp.domain.model.CategoryRegistry
 
 @Composable
 fun PieChart(
@@ -25,10 +25,14 @@ fun PieChart(
 ) {
     val defaultColor = MaterialTheme.colorScheme.outline
     val chartColors = remember {
-        MessageCategory.entries.associate { it.name to it.fallbackColor }
+        CategoryRegistry.getDefaultCategoryNames().associateWith { 
+            CategoryRegistry.getCategory(it).fallbackColor 
+        }
     }
     // 在 Composable 上下文中获取 theme-aware 颜色映射
-    val themeChartColors = MessageCategory.entries.associate { it.name to it.color }
+    val themeChartColors = CategoryRegistry.getDefaultCategoryNames().associateWith { 
+        CategoryRegistry.getCategory(it).color 
+    }
 
     // ─── 动画 ────────────────────────────────────────────────
     val animProgress = remember { Animatable(0f) }
@@ -91,11 +95,7 @@ fun PieChart(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             data.forEach { stat ->
-                val category = try {
-                    MessageCategory.valueOf(stat.category)
-                } catch (_: Exception) {
-                    MessageCategory.OTHER
-                }
+                val category = CategoryRegistry.getCategory(stat.category)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Canvas(modifier = Modifier.size(12.dp)) {
                         drawCircle(color = themeChartColors[stat.category] ?: chartColors[stat.category] ?: category.fallbackColor)

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.data.local.entity.ServerEntity
+import com.flypigs.ntfyapp.data.local.entity.TopicEntity
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import android.content.Context
 import android.content.Intent
@@ -203,6 +204,18 @@ fun SettingsScreen(
     var topicName by remember { mutableStateOf("") }
     var topicDisplayName by remember { mutableStateOf("") }
 
+    // Edit server dialog state
+    var editingServer by remember { mutableStateOf<ServerEntity?>(null) }
+    var editServerName by remember { mutableStateOf("") }
+    var editServerUrl by remember { mutableStateOf("") }
+    var editServerUsername by remember { mutableStateOf("") }
+    var editServerPassword by remember { mutableStateOf("") }
+
+    // Edit topic dialog state
+    var editingTopic by remember { mutableStateOf<TopicEntity?>(null) }
+    var editTopicName by remember { mutableStateOf("") }
+    var editTopicDisplayName by remember { mutableStateOf("") }
+
     Scaffold(
         topBar = {
             CenteredTopAppBar(title = "设置")
@@ -223,7 +236,16 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold
             )
             servers.forEach { server ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        editingServer = server
+                        editServerName = server.name
+                        editServerUrl = server.url
+                        editServerUsername = server.username ?: ""
+                        editServerPassword = ""
+                    }
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -285,7 +307,14 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold
             )
             topics.forEach { topic ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        editingTopic = topic
+                        editTopicName = topic.name
+                        editTopicDisplayName = topic.displayName
+                    }
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -621,6 +650,117 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirmDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // Edit Server Dialog
+    editingServer?.let { server ->
+        AlertDialog(
+            onDismissRequest = { editingServer = null },
+            title = { Text("编辑服务器") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = editServerName,
+                        onValueChange = { editServerName = it },
+                        label = { Text("名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editServerUrl,
+                        onValueChange = { editServerUrl = it },
+                        label = { Text("服务器地址") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editServerUsername,
+                        onValueChange = { editServerUsername = it },
+                        label = { Text("用户名") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    var passwordVisible by remember { mutableStateOf(false) }
+                    OutlinedTextField(
+                        value = editServerPassword,
+                        onValueChange = { editServerPassword = it },
+                        label = { Text("密码 (留空不修改)") },
+                        singleLine = true,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff, "切换密码可见性")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editServerName.isNotBlank() && editServerUrl.isNotBlank()) {
+                            viewModel.updateServer(
+                                id = server.id,
+                                url = editServerUrl,
+                                name = editServerName,
+                                username = editServerUsername.ifBlank { null },
+                                password = editServerPassword.ifBlank { null }
+                            )
+                            editingServer = null
+                        }
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingServer = null }) { Text("取消") }
+            }
+        )
+    }
+
+    // Edit Topic Dialog
+    editingTopic?.let { topic ->
+        AlertDialog(
+            onDismissRequest = { editingTopic = null },
+            title = { Text("编辑 Topic") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = editTopicName,
+                        onValueChange = { editTopicName = it },
+                        label = { Text("Topic 名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = editTopicDisplayName,
+                        onValueChange = { editTopicDisplayName = it },
+                        label = { Text("显示名称") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (editTopicName.isNotBlank() && editTopicDisplayName.isNotBlank()) {
+                            viewModel.updateTopic(
+                                id = topic.id,
+                                serverId = topic.serverId,
+                                name = editTopicName,
+                                displayName = editTopicDisplayName,
+                                isEnabled = topic.isEnabled
+                            )
+                            editingTopic = null
+                        }
+                    }
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingTopic = null }) { Text("取消") }
             }
         )
     }

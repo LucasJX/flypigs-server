@@ -40,11 +40,7 @@ object Mappers {
         tags = tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
         timestamp = timestamp,
         isRead = isRead,
-        category = try {
-            MessageCategory.valueOf(category)
-        } catch (_: Exception) {
-            MessageCategory.OTHER
-        }
+        category = category
     )
 
     fun CategoryCount.toDomain() = CategoryStat(category = category, count = count)
@@ -55,7 +51,4 @@ object Mappers {
     fun List<ServerEntity>.toDomainServers() = map { it.toDomain() }
     fun List<TopicEntity>.toDomainTopics() = map { it.toDomain() }
     fun List<MessageEntity>.toDomainMessages() = map { it.toDomain() }
-    fun List<CategoryCount>.toDomainCategoryStats() = map { it.toDomain() }
-    fun List<TopicCount>.toDomainTopicStats() = map { it.toDomain() }
-    fun List<DailyCount>.toDomainDailyStats() = map { it.toDomain() }
 }

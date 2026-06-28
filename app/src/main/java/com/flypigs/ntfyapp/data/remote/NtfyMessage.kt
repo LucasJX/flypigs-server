@@ -21,8 +21,9 @@ data class NtfyMessage(
     @SerializedName("message")
     val message: String = "",
 
+    // 修改: 支持字符串和数字格式的 priority
     @SerializedName("priority")
-    val priority: Int? = null,
+    val priorityRaw: Any? = null,
 
     @SerializedName("tags")
     val tags: List<String>? = null,
@@ -32,4 +33,27 @@ data class NtfyMessage(
 
     @SerializedName("icon")
     val icon: String? = null
-)
+) {
+    // 计算属性：将 priorityRaw 转换为 Int
+    val priority: Int
+        get() = parsePriority(priorityRaw)
+
+    companion object {
+        private fun parsePriority(raw: Any?): Int {
+            return when (raw) {
+                is Int -> raw
+                is Long -> raw.toInt()
+                is Double -> raw.toInt()
+                is String -> when (raw.lowercase()) {
+                    "min" -> 1
+                    "low" -> 2
+                    "default" -> 3
+                    "high" -> 4
+                    "urgent" -> 5
+                    else -> raw.toIntOrNull() ?: 3
+                }
+                else -> 3
+            }
+        }
+    }
+}

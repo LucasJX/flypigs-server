@@ -13,7 +13,7 @@ import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.data.local.entity.TopicEntity
 import com.flypigs.ntfyapp.data.repository.MessageRepository
 import com.flypigs.ntfyapp.data.repository.TopicRepository
-import com.flypigs.ntfyapp.domain.model.MessageCategory
+import com.flypigs.ntfyapp.domain.model.CategoryRegistry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -32,16 +32,39 @@ data class DynamicCategory(
     val color: Color
 )
 
-// 默认分类映射
-val DEFAULT_CATEGORY_MAP = mapOf(
-    "NODE_CHANGE" to DynamicCategory("NODE_CHANGE", "节点变更", Icons.Default.SwapHoriz, Color(0xFF1976D2)),
-    "SYSTEM_ALERT" to DynamicCategory("SYSTEM_ALERT", "系统告警", Icons.Default.Warning, Color(0xFFD32F2F)),
-    "RECOVERY" to DynamicCategory("RECOVERY", "恢复通知", Icons.Default.CheckCircle, Color(0xFF388E3C)),
-    "UPDATE" to DynamicCategory("UPDATE", "更新通知", Icons.Default.Inventory2, Color(0xFFF57C00)),
-    "DEVICE" to DynamicCategory("DEVICE", "设备监控", Icons.Default.Devices, Color(0xFF00897B)),
-    "SUBSCRIPTION" to DynamicCategory("SUBSCRIPTION", "订阅提醒", Icons.Default.CardMembership, Color(0xFF7B1FA2)),
-    "OTHER" to DynamicCategory("OTHER", "其他", Icons.Default.ChatBubbleOutline, Color(0xFF757575))
-)
+// 默认分类映射 — 从 CategoryRegistry 获取 + 旧版英文枚举名兼容
+private fun buildCategoryMap(): Map<String, DynamicCategory> {
+    val map = mutableMapOf<String, DynamicCategory>()
+    // 中文 key（新系统）
+    for (name in CategoryRegistry.getDefaultCategoryNames()) {
+        val info = CategoryRegistry.getCategory(name)
+        map[name] = DynamicCategory(name, info.displayName, info.icon, info.fallbackColor)
+    }
+    // 旧版英文枚举名 + 常见英文变体 → 映射到中文分类
+    val legacyMapping = mapOf(
+        // 旧版 MessageCategory 枚举名（全大写，数据库实际存储值）
+        "NODE_CHANGE" to "节点监控",
+        "SYSTEM_ALERT" to "系统监控",
+        "RECOVERY" to "节点监控",
+        "UPDATE" to "配置变更",
+        "DEVICE" to "设备监控",
+        "SUBSCRIPTION" to "订阅提醒",
+        "OTHER" to "其他",
+        // 其他可能的英文变体
+        "Device" to "设备监控",
+        "Subscription" to "订阅提醒",
+        "Node" to "节点监控",
+        "System" to "系统监控",
+        "Clash" to "配置变更"
+    )
+    for ((legacy, chinese) in legacyMapping) {
+        val info = CategoryRegistry.getCategory(chinese)
+        map[legacy] = DynamicCategory(chinese, info.displayName, info.icon, info.fallbackColor)
+    }
+    return map
+}
+
+val DEFAULT_CATEGORY_MAP = buildCategoryMap()
 
 fun unknownCategory(name: String) = DynamicCategory(
     name = name,
@@ -61,8 +84,8 @@ class HomeViewModel @Inject constructor(
     private val topicRepository: TopicRepository
 ) : ViewModel() {
 
-    private val _selectedCategory = MutableStateFlow<MessageCategory?>(null)
-    val selectedCategory: StateFlow<MessageCategory?> = _selectedCategory.asStateFlow()
+    private val _selectedCategory = MutableStateFlow<String?>(null)
+    val selectedCategory: StateFlow<String?> = _selectedCategory.asStateFlow()
 
     private val _selectedTopic = MutableStateFlow<String?>(null)
     val selectedTopic: StateFlow<String?> = _selectedTopic.asStateFlow()
@@ -171,9 +194,7 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun selectCategory(categoryName: String?) {
-        _selectedCategory.value = categoryName?.let { name ->
-            try { MessageCategory.valueOf(name) } catch (_: Exception) { null }
-        }
+        _selectedCategory.value = categoryName
         _selectedTab.value = MessageTab.ALL
     }
 

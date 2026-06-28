@@ -26,7 +26,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.activity.compose.BackHandler
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.ui.LocalBatchMode
-import com.flypigs.ntfyapp.domain.model.MessageCategory
+import com.flypigs.ntfyapp.domain.model.CategoryRegistry
 import com.flypigs.ntfyapp.ui.LocalDrawerState
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import com.flypigs.ntfyapp.ui.component.MessageCard
@@ -84,7 +84,7 @@ fun HomeScreen(
                     totalCount = totalCount,
                     topicUnreadCounts = topicUnreadCounts,
                     selectedTopic = selectedTopic,
-                    selectedCategory = selectedCategory?.name,
+                    selectedCategory = selectedCategory,
                     selectedTab = selectedTab,
                     onSelectTopic = { topic ->
                         viewModel.selectTopic(topic)
@@ -135,8 +135,9 @@ fun HomeScreen(
             } else {
                 // 普通模式顶栏
                 val subtitle = when {
-                    selectedTopic != null && selectedCategory != null ->
-                        "${selectedCategory!!.displayName}"
+                    selectedTopic != null && selectedCategory != null -> {
+                        CategoryRegistry.getCategory(selectedCategory!!).displayName
+                    }
                     selectedTopic != null -> {
                         val topicName = topics.find { it.name == selectedTopic }?.displayName ?: selectedTopic!!
                         topicName
@@ -217,7 +218,7 @@ fun HomeScreen(
             if (selectedTab == MessageTab.ALL) {
                 val categoryNames = dynamicCategories.map { it.name }
                 ScrollableTabRow(
-                    selectedTabIndex = if (selectedCategory == null) 0 else (categoryNames.indexOf(selectedCategory?.name) + 1).coerceAtLeast(0),
+                    selectedTabIndex = if (selectedCategory == null) 0 else (categoryNames.indexOf(selectedCategory) + 1).coerceAtLeast(0),
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.primary,
                     edgePadding = 16.dp
@@ -229,10 +230,10 @@ fun HomeScreen(
                     )
                     dynamicCategories.forEach { category ->
                         Tab(
-                            selected = selectedCategory?.name == category.name,
+                            selected = selectedCategory == category.name,
                             onClick = {
                                 viewModel.selectCategory(
-                                    if (selectedCategory?.name == category.name) null else category.name
+                                    if (selectedCategory == category.name) null else category.name
                                 )
                             },
                             text = { Text(category.displayName) },

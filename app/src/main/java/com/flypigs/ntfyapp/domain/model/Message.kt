@@ -9,5 +9,5 @@ data class Message(
     val tags: List<String>,
     val timestamp: Long,
     val isRead: Boolean,
-    val category: MessageCategory
+    val category: String
 )

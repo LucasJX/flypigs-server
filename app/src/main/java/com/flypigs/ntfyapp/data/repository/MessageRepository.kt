@@ -6,7 +6,6 @@ import androidx.paging.PagingData
 import com.flypigs.ntfyapp.data.local.dao.MessageDao
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.data.remote.NtfyMessage
-import com.flypigs.ntfyapp.domain.model.MessageCategory
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
@@ -35,8 +34,8 @@ class MessageRepository @Inject constructor(
     fun getUnreadMessagesPaging(): Flow<PagingData<MessageEntity>> =
         Pager(PAGING_CONFIG) { messageDao.getUnreadMessagesPagingSource() }.flow
 
-    fun getMessagesByCategoryPaging(category: MessageCategory): Flow<PagingData<MessageEntity>> =
-        Pager(PAGING_CONFIG) { messageDao.getMessagesByCategoryPagingSource(category.name) }.flow
+    fun getMessagesByCategoryPaging(category: String): Flow<PagingData<MessageEntity>> =
+        Pager(PAGING_CONFIG) { messageDao.getMessagesByCategoryPagingSource(category) }.flow
 
     fun getMessagesByTopicPaging(topic: String): Flow<PagingData<MessageEntity>> =
         Pager(PAGING_CONFIG) { messageDao.getMessagesByTopicPagingSource(topic) }.flow
@@ -48,8 +47,8 @@ class MessageRepository @Inject constructor(
     fun getAllMessages(): Flow<List<MessageEntity>> =
         messageDao.getAllMessages().distinctUntilChanged()
 
-    fun getMessagesByCategory(category: MessageCategory): Flow<List<MessageEntity>> =
-        messageDao.getMessagesByCategory(category.name).distinctUntilChanged()
+    fun getMessagesByCategory(category: String): Flow<List<MessageEntity>> =
+        messageDao.getMessagesByCategory(category).distinctUntilChanged()
 
     fun searchMessages(query: String): Flow<List<MessageEntity>> =
         messageDao.searchMessages(query).distinctUntilChanged()
@@ -63,7 +62,7 @@ class MessageRepository @Inject constructor(
             topic = ntfyMessage.topic,
             title = ntfyMessage.title,
             body = ntfyMessage.message,
-            priority = ntfyMessage.priority ?: 3,
+            priority = ntfyMessage.priority,
             tags = ntfyMessage.tags?.joinToString(","),
             timestamp = ntfyMessage.time,
             isRead = false,
@@ -108,8 +107,8 @@ class MessageRepository @Inject constructor(
     fun getMessagesByTopic(topic: String) =
         messageDao.getMessagesByTopic(topic).distinctUntilChanged()
 
-    fun getMessagesByTopicAndCategory(topic: String, category: MessageCategory) =
-        messageDao.getMessagesByTopicAndCategory(topic, category.name).distinctUntilChanged()
+    fun getMessagesByTopicAndCategory(topic: String, category: String) =
+        messageDao.getMessagesByTopicAndCategory(topic, category).distinctUntilChanged()
 
     fun getUnreadMessages() =
         messageDao.getUnreadMessages().distinctUntilChanged()
@@ -131,20 +130,27 @@ class MessageRepository @Inject constructor(
 
     /**
      * 根据 tags 自动分类消息
+     * 优先识别 ec:xxx 标签（插件端明确标注的分类）
      */
     private fun classifyMessage(tags: List<String>?): String {
-        if (tags.isNullOrEmpty()) return "OTHER"
+        if (tags.isNullOrEmpty()) return "其他"
 
+        // 优先识别 ec:xxx 标签
+        val ecTag = tags.find { it.startsWith("ec:") }
+        if (ecTag != null) {
+            return ecTag.removePrefix("ec:")
+        }
+
+        // 兜底：根据常见标签猜测分类
         val tagSet = tags.map { it.lowercase() }.toSet()
-
         return when {
-            tagSet.any { it in listOf("node", "change", "上线", "下线") } -> "NODE_CHANGE"
-            tagSet.any { it in listOf("alert", "warning", "error", "故障") } -> "SYSTEM_ALERT"
-            tagSet.any { it in listOf("recovery", "ok", "恢复", "正常") } -> "RECOVERY"
-            tagSet.any { it in listOf("update", "release", "版本") } -> "UPDATE"
-            tagSet.any { it in listOf("device", "设备") } -> "DEVICE"
-            tagSet.any { it in listOf("sub", "subscription", "订阅") } -> "SUBSCRIPTION"
-            else -> "OTHER"
+            tagSet.any { it in listOf("node", "change") } -> "节点监控"
+            tagSet.any { it in listOf("alert", "warning", "error") } -> "系统监控"
+            tagSet.any { it in listOf("recovery", "ok") } -> "节点监控"
+            tagSet.any { it in listOf("update", "release") } -> "配置变更"
+            tagSet.any { it in listOf("device") } -> "设备监控"
+            tagSet.any { it in listOf("sub", "subscription") } -> "订阅提醒"
+            else -> "其他"
         }
     }
 }

@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import com.flypigs.ntfyapp.util.parseMarkdown
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.flypigs.ntfyapp.domain.model.MessageCategory
+import com.flypigs.ntfyapp.domain.model.CategoryRegistry
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,9 +61,9 @@ fun DetailScreen(
             }
         } else {
             val category = try {
-                MessageCategory.valueOf(msg.category)
-            } catch (e: Exception) {
-                MessageCategory.OTHER
+                CategoryRegistry.getCategory(msg.category)
+            } catch (_: Exception) {
+                CategoryRegistry.getCategory("其他")
             }
 
             Column(

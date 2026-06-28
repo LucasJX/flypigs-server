@@ -201,6 +201,10 @@ class NtfyService : Service() {
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java)
 
+        // 删除旧渠道（强制重建，确保设置生效）
+        manager.deleteNotificationChannel(CHANNEL_ID)
+        manager.deleteNotificationChannel(MESSAGE_CHANNEL_ID)
+
         val serviceChannel = NotificationChannel(
             CHANNEL_ID,
             "ntfy 服务",
@@ -218,6 +222,10 @@ class NtfyService : Service() {
         ).apply {
             description = "ntfy 推送消息通知"
             enableVibration(true)
+            enableLights(true)
+            lightColor = android.graphics.Color.RED
+            lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+            setShowBadge(true)
         }
         manager.createNotificationChannel(messageChannel)
     }
@@ -251,17 +259,34 @@ class NtfyService : Service() {
             this, message.id.hashCode(),
             Intent(this, MainActivity::class.java).apply {
                 putExtra("message_id", message.id)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        // 根据优先级设置不同的提醒方式
+        val priority = message.priority ?: 3
+        val isHighPriority = priority >= 4
 
         val notification = NotificationCompat.Builder(this, MESSAGE_CHANNEL_ID)
             .setContentTitle(message.title ?: message.topic)
             .setContentText(message.message)
             .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .apply {
+                if (isHighPriority) {
+                    // 高优先级：声音 + 振动 + heads-up
+                    setDefaults(NotificationCompat.DEFAULT_ALL)
+                    setVibrate(longArrayOf(0, 250, 100, 250))
+                } else {
+                    // 普通：仅声音
+                    setDefaults(NotificationCompat.DEFAULT_SOUND)
+                }
+            }
             .build()
 
         val manager = getSystemService(NotificationManager::class.java)

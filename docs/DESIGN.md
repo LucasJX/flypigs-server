@@ -97,7 +97,7 @@ app/
 │   │   │   ├── Message.kt
 │   │   │   ├── Topic.kt
 │   │   │   ├── Server.kt
-│   │   │   └── MessageCategory.kt
+│   │   │   └── CategoryRegistry.kt
 │   │   └── usecase/
 │   │       ├── GetMessagesUseCase.kt
 │   │       ├── GetStatsUseCase.kt
@@ -151,16 +151,15 @@ data class Message(
     val tags: List<String>,
     val timestamp: Long,
     val isRead: Boolean,
-    val category: MessageCategory
+    val category: String        // 动态分类，如 "节点监控", "系统监控", "设备监控" 等
 )
 
-// 消息分类
-enum class MessageCategory {
-    NODE_CHANGE,    // 节点变更
-    SYSTEM_ALERT,   // 系统告警
-    RECOVERY,       // 恢复通知
-    UPDATE,         // 更新通知
-    OTHER           // 其他
+// 消息分类 — 动态分类系统
+// 插件端通过 ec:xxx 标签定义分类，App 端自动识别
+object CategoryRegistry {
+    // 默认分类：节点监控、系统监控、设备监控、订阅提醒、配置变更、其他
+    fun getCategory(name: String): CategoryInfo
+    fun getDefaultCategoryNames(): Set<String>
 }
 
 // Topic
