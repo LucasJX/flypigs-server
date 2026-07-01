@@ -189,6 +189,35 @@ fun SettingsScreen(
 
     val servers by viewModel.servers.collectAsState()
     val topics by viewModel.topics.collectAsState()
+    val testStates by viewModel.testStates.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 观察 testStates 变化 → 弹出 Snackbar 反馈（SUCCESS / FAILED 短暂显示）
+    var lastShownServerId by remember { mutableStateOf<String?>(null) }
+    var lastShownState by remember { mutableStateOf<TestState?>(null) }
+    LaunchedEffect(testStates) {
+        // 找最新变化的那台服务器（避免重复弹）
+        testStates.forEach { (serverId, state) ->
+            if (state == TestState.SUCCESS && (serverId != lastShownServerId || lastShownState != TestState.SUCCESS)) {
+                val server = servers.find { it.id == serverId }
+                snackbarHostState.showSnackbar(
+                    message = "✓ 连接成功：${server?.name ?: serverId}",
+                    duration = SnackbarDuration.Short
+                )
+                lastShownServerId = serverId
+                lastShownState = TestState.SUCCESS
+            } else if (state == TestState.FAILED && (serverId != lastShownServerId || lastShownState != TestState.FAILED)) {
+                val server = servers.find { it.id == serverId }
+                snackbarHostState.showSnackbar(
+                    message = "✗ 连接失败：${server?.name ?: serverId}（检查 URL / 凭据 / 网络）",
+                    duration = SnackbarDuration.Long
+                )
+                lastShownServerId = serverId
+                lastShownState = TestState.FAILED
+            }
+        }
+    }
 
     var showAddServerDialog by remember { mutableStateOf(false) }
     var showAddTopicDialog by remember { mutableStateOf(false) }
@@ -219,7 +248,8 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             CenteredTopAppBar(title = "设置")
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -236,6 +266,7 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Bold
             )
             servers.forEach { server ->
+                val testState = testStates[server.id] ?: TestState.IDLE
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
@@ -284,6 +315,67 @@ fun SettingsScreen(
                                     "删除",
                                     tint = MaterialTheme.colorScheme.error
                                 )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // ── 手动测试连接按钮 ─────────────────────────────
+                        // 4 种状态：IDLE（测试连接）/ TESTING（测试中…带 spinner）/ SUCCESS（✓ 已连接）/ FAILED（✗ 失败 重试）
+                        val btnLabel: String
+                        val btnIcon: androidx.compose.ui.graphics.vector.ImageVector?
+                        val btnEnabled: Boolean
+                        val btnColors: androidx.compose.material3.ButtonColors
+                        when (testState) {
+                            TestState.IDLE -> {
+                                btnLabel = "测试连接"
+                                btnIcon = Icons.Default.WifiFind
+                                btnEnabled = true
+                                btnColors = ButtonDefaults.outlinedButtonColors()
+                            }
+                            TestState.TESTING -> {
+                                btnLabel = "测试中…"
+                                btnIcon = null
+                                btnEnabled = false
+                                btnColors = ButtonDefaults.outlinedButtonColors()
+                            }
+                            TestState.SUCCESS -> {
+                                btnLabel = "✓ 已连接"
+                                btnIcon = Icons.Default.CheckCircle
+                                btnEnabled = false
+                                btnColors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary,
+                                    disabledContentColor = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            TestState.FAILED -> {
+                                btnLabel = "✗ 失败 重试"
+                                btnIcon = Icons.Default.Refresh
+                                btnEnabled = true
+                                btnColors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = { if (testState != TestState.TESTING) viewModel.testConnection(server) },
+                            enabled = btnEnabled,
+                            colors = btnColors,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (testState == TestState.TESTING) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(btnLabel)
+                            } else {
+                                btnIcon?.let {
+                                    Icon(it, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(btnLabel)
                             }
                         }
                     }

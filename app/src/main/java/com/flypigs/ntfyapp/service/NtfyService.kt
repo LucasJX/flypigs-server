@@ -22,6 +22,7 @@ import com.flypigs.ntfyapp.data.repository.MessageRepository
 import com.flypigs.ntfyapp.data.repository.ServerRepository
 import com.flypigs.ntfyapp.data.repository.TopicRepository
 import com.flypigs.ntfyapp.ui.MainActivity
+import com.flypigs.ntfyapp.util.UrlRewriter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -153,36 +154,38 @@ class NtfyService : Service() {
 
                     // 检查是否已有活跃连接（断开的连接需要清理）
                     val existing = connections[key]
-                    if (existing != null && existing.isConnected) {
-                        continue  // 已连接，跳过
+                    if (existing == null || !existing.isConnected) {
+                        // 清理断开的连接
+                        existing?.disconnect()
+
+                        val ws = NtfyWebSocket(
+                            serverUrl = server.url,
+                            topic = topic.name,
+                            username = server.username,
+                            password = password,
+                            token = server.token,
+                            client = NtfyWebSocket.sharedClient,
+                            onMessage = { message ->
+                                serviceScope.launch {
+                                    handleIncomingMessage(message, server.id, topic.name)
+                                }
+                            },
+                            onConnectionChanged = { connected ->
+                                serviceScope.launch {
+                                    serverRepository.updateConnectionStatus(server.id, connected)
+                                }
+                                updateServiceNotification(connected)
+                            }
+                        )
+                        connections[key] = ws
+                        ws.connect()
+                        Log.d(TAG, "Connecting to ${server.url}/${topic.name}")
+                    } else {
+                        Log.d(TAG, "Already connected to ${server.url}/${topic.name}, re-syncing history")
                     }
-                    // 清理断开的连接
-                    existing?.disconnect()
 
-                    val ws = NtfyWebSocket(
-                        serverUrl = server.url,
-                        topic = topic.name,
-                        username = server.username,
-                        password = password,
-                        token = server.token,
-                        client = NtfyWebSocket.sharedClient,
-                        onMessage = { message ->
-                            serviceScope.launch {
-                                handleIncomingMessage(message, server.id, topic.name)
-                            }
-                        },
-                        onConnectionChanged = { connected ->
-                            serviceScope.launch {
-                                serverRepository.updateConnectionStatus(server.id, connected)
-                            }
-                            updateServiceNotification(connected)
-                        }
-                    )
-                    connections[key] = ws
-                    ws.connect()
-                    Log.d(TAG, "Connecting to ${server.url}/${topic.name}")
-
-                    // 拉取历史消息 — 补偿 WebSocket 断连期间漏掉的消息
+                    // 始终拉取历史消息（已连接时也拉）— 补偿 WebSocket 断连期间漏掉的消息
+                    // 用 since=lastLocalTs-60s 避免边界遗漏；insertMessage 唯一约束会跳过重复
                     serviceScope.launch {
                         syncHistoryForTopic(server, topic)
                     }
@@ -226,7 +229,15 @@ class NtfyService : Service() {
             var inserted = 0
             for (msg in history) {
                 try {
-                    messageRepository.insertMessage(msg)
+                    // 改写 attachment URL — 用当前 server 的 URL 替换 base
+                    val rewritten = if (msg.attachment != null) {
+                        val newUrl = UrlRewriter.rewriteAttachmentUrl(msg.attachment.url, server.url)
+                            ?: msg.attachment.url
+                        if (newUrl != msg.attachment.url) {
+                            msg.copy(attachment = msg.attachment.copy(url = newUrl))
+                        } else msg
+                    } else msg
+                    messageRepository.insertMessage(rewritten)
                     inserted++
                 } catch (e: Exception) {
                     // 重复消息会触发唯一约束冲突，静默跳过
@@ -247,9 +258,22 @@ class NtfyService : Service() {
 
     private suspend fun handleIncomingMessage(ntfyMessage: NtfyMessage, serverId: String, topicName: String) {
         try {
-            val entity = messageRepository.insertMessage(ntfyMessage)
-            showMessageNotification(ntfyMessage, entity.category)
-            Log.d(TAG, "Message saved: ${ntfyMessage.id} from $topicName")
+            // 改写 attachment URL — 用当前 server 的 URL 替换 base
+            // 让 APK 不依赖 ntfy 服务端的 base-url 配置（适配任意部署）
+            val server = serverRepository.getServerById(serverId)
+            val rewritten = if (server != null && ntfyMessage.attachment != null) {
+                val newUrl = UrlRewriter.rewriteAttachmentUrl(ntfyMessage.attachment.url, server.url)
+                    ?: ntfyMessage.attachment.url
+                if (newUrl != ntfyMessage.attachment.url) {
+                    ntfyMessage.copy(
+                        attachment = ntfyMessage.attachment.copy(url = newUrl)
+                    )
+                } else ntfyMessage
+            } else ntfyMessage
+
+            val entity = messageRepository.insertMessage(rewritten)
+            showMessageNotification(rewritten, entity.category)
+            Log.d(TAG, "Message saved: ${rewritten.id} from $topicName${if (rewritten.attachment != null) " [attachment: ${rewritten.attachment.url}]" else ""}")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save message", e)
         }
