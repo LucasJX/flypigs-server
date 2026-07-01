@@ -127,4 +127,9 @@ dependencies {
     // Paging 3
     implementation("androidx.paging:paging-runtime-ktx:3.2.1")
     implementation("androidx.paging:paging-compose:3.2.1")
+
+    // Coil — 图片附件渲染 (v6 新增)
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    // Telephoto — 全屏图片缩放 (v6 新增)
+    implementation("me.saket.telephoto:zoomable-image-coil:0.13.0")
 }

@@ -66,11 +66,21 @@ class MessageRepository @Inject constructor(
             tags = ntfyMessage.tags?.joinToString(","),
             timestamp = ntfyMessage.time,
             isRead = false,
-            category = category
+            category = category,
+            // 附件桥接 (v6)
+            attachmentName = ntfyMessage.attachment?.name,
+            attachmentType = ntfyMessage.attachment?.type,
+            attachmentSize = ntfyMessage.attachment?.size,
+            attachmentUrl = ntfyMessage.attachment?.url,
+            attachmentExpires = ntfyMessage.attachment?.expires
         )
         messageDao.insertMessage(entity)
         return entity
     }
+
+    /** v6 新增：按 topic 查分类，用于 topic 页签下显示该 topic 拥有的分类 */
+    fun getDistinctCategoriesByTopic(topic: String) =
+        messageDao.getDistinctCategoriesByTopic(topic).distinctUntilChanged()
 
     suspend fun markAsRead(id: String) = messageDao.markAsRead(id)
 
