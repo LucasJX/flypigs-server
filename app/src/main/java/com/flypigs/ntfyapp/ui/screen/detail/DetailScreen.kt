@@ -20,9 +20,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
+import com.flypigs.ntfyapp.ui.component.MessageCard
+import com.flypigs.ntfyapp.util.AttachmentUtils
 import com.flypigs.ntfyapp.util.parseMarkdown
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.flypigs.ntfyapp.domain.model.CategoryRegistry
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,11 +34,34 @@ import java.util.Locale
 @Composable
 fun DetailScreen(
     onNavigateBack: () -> Unit = {},
-    viewModel: DetailViewModel = hiltViewModel()
+    viewModel: DetailViewModel = hiltViewModel(),
+    // v6 新增
+    onNavigateToAttachment: (url: String, name: String) -> Unit = { _, _ -> }
 ) {
     val message by viewModel.message.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // v6: 附件处理
+    val handleAttachmentClick: (String, String, String?) -> Unit = { url, name, _ ->
+        onNavigateToAttachment(url, name)
+    }
+    val handleAttachmentLongClick: (String, String, String?) -> Unit = { url, name, mime ->
+        if (mime?.startsWith("image/") == true) {
+            scope.launch {
+                AttachmentUtils.saveImageToGallery(context, url, name)
+                    .onSuccess { AttachmentUtils.showSavedToast(context, "相册/Flypigs") }
+                    .onFailure { AttachmentUtils.showErrorToast(context, "保存失败: ${it.message ?: "未知"}") }
+            }
+        } else {
+            scope.launch {
+                AttachmentUtils.downloadToDownloads(context, url, name, mime)
+                    .onSuccess { AttachmentUtils.showSavedToast(context, "Download/Flypigs") }
+                    .onFailure { AttachmentUtils.showErrorToast(context, "下载失败: ${it.message ?: "未知"}") }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -101,6 +127,16 @@ fun DetailScreen(
                         text = parseMarkdown(msg.body),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.padding(16.dp)
+                    )
+                }
+
+                // v6: 附件预览 — 复用 MessageCard 的附件渲染逻辑
+                if (!msg.attachmentUrl.isNullOrBlank()) {
+                    MessageCard(
+                        message = msg,
+                        onClick = { /* 在详情页点击附件不触发跳转 */ },
+                        onAttachmentClick = handleAttachmentClick,
+                        onAttachmentLongClick = handleAttachmentLongClick
                     )
                 }
 

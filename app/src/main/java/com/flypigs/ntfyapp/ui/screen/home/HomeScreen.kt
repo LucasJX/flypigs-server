@@ -24,12 +24,14 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.rememberCoroutineScope
 import com.flypigs.ntfyapp.data.local.entity.MessageEntity
 import com.flypigs.ntfyapp.ui.LocalBatchMode
 import com.flypigs.ntfyapp.domain.model.CategoryRegistry
 import com.flypigs.ntfyapp.ui.LocalDrawerState
 import com.flypigs.ntfyapp.ui.component.CenteredTopAppBar
 import com.flypigs.ntfyapp.ui.component.MessageCard
+import com.flypigs.ntfyapp.util.AttachmentUtils
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,7 +43,9 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onOpenDrawer: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
-    onNavigateToDetail: (String) -> Unit = {}
+    onNavigateToDetail: (String) -> Unit = {},
+    // v6 新增：附件回调
+    onNavigateToAttachment: (url: String, name: String) -> Unit = { _, _ -> }
 ) {
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedTopic by viewModel.selectedTopic.collectAsState()
@@ -57,6 +61,8 @@ fun HomeScreen(
     val isBatchMode by viewModel.isBatchMode.collectAsState()
     val selectedIds by viewModel.selectedIds.collectAsState()
     val dynamicCategories by viewModel.dynamicCategories.collectAsState()
+    // 修复 Bug3: 按当前选中 topic 过滤的分类列表
+    val topicCategories by viewModel.topicCategories.collectAsState()
 
     // 提供批量模式状态给 MainActivity
     CompositionLocalProvider(LocalBatchMode provides isBatchMode) {
@@ -75,6 +81,28 @@ fun HomeScreen(
 
     val scope = rememberCoroutineScope()
     val drawerHolder = LocalDrawerState.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // v6: 附件处理 — 图片进入全屏、长按直接保存
+    val handleAttachmentClick: (String, String, String?) -> Unit = { url, name, mime ->
+        onNavigateToAttachment(url, name)
+    }
+    val handleAttachmentLongClick: (String, String, String?) -> Unit = { url, name, mime ->
+        if (mime?.startsWith("image/") == true) {
+            scope.launch {
+                AttachmentUtils.saveImageToGallery(context, url, name)
+                    .onSuccess { AttachmentUtils.showSavedToast(context, "相册/Flypigs") }
+                    .onFailure { AttachmentUtils.showErrorToast(context, "保存失败: ${it.message ?: "未知"}") }
+            }
+        } else {
+            // 非图片附件长按 → 下载
+            scope.launch {
+                AttachmentUtils.downloadToDownloads(context, url, name, mime)
+                    .onSuccess { AttachmentUtils.showSavedToast(context, "Download/Flypigs") }
+                    .onFailure { AttachmentUtils.showErrorToast(context, "下载失败: ${it.message ?: "未知"}") }
+            }
+        }
+    }
 
     DisposableEffect(Unit) {
         drawerHolder.value = drawerHolder.value.copy(
@@ -215,8 +243,11 @@ fun HomeScreen(
             }
 
             // 分类筛选 ScrollableTabRow（仅全部消息 Tab 下显示）
+            // 修复 Bug3: 用 topicCategories 替代 dynamicCategories
+            //   - selectedTopic == null → 显示全部分类
+            //   - selectedTopic != null → 只显示该 topic 下的分类
             if (selectedTab == MessageTab.ALL) {
-                val categoryNames = dynamicCategories.map { it.name }
+                val categoryNames = topicCategories.map { it.name }
                 ScrollableTabRow(
                     selectedTabIndex = if (selectedCategory == null) 0 else (categoryNames.indexOf(selectedCategory) + 1).coerceAtLeast(0),
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -226,9 +257,9 @@ fun HomeScreen(
                     Tab(
                         selected = selectedCategory == null,
                         onClick = { viewModel.selectCategory(null) },
-                        text = { Text("全部") }
+                        text = { Text(if (selectedTopic == null) "全部" else "全部 ${selectedTopic?.let { getTopicShortName(topics, it) } ?: ""}") }
                     )
-                    dynamicCategories.forEach { category ->
+                    topicCategories.forEach { category ->
                         Tab(
                             selected = selectedCategory == category.name,
                             onClick = {
@@ -264,7 +295,9 @@ fun HomeScreen(
                         isBatchMode = isBatchMode,
                         selectedIds = selectedIds,
                         onEnterBatchMode = { viewModel.enterBatchMode(it) },
-                        onToggleSelection = { viewModel.toggleSelection(it) }
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onAttachmentClick = handleAttachmentClick,
+                        onAttachmentLongClick = handleAttachmentLongClick
                     )
                 }
             } else if (isSearching && searchQuery.isNotBlank()) {
@@ -280,7 +313,9 @@ fun HomeScreen(
                         isBatchMode = isBatchMode,
                         selectedIds = selectedIds,
                         onEnterBatchMode = { viewModel.enterBatchMode(it) },
-                        onToggleSelection = { viewModel.toggleSelection(it) }
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onAttachmentClick = handleAttachmentClick,
+                        onAttachmentLongClick = handleAttachmentLongClick
                     )
                 }
             } else {
@@ -292,7 +327,9 @@ fun HomeScreen(
                     isBatchMode = isBatchMode,
                     selectedIds = selectedIds,
                     onEnterBatchMode = { viewModel.enterBatchMode(it) },
-                    onToggleSelection = { viewModel.toggleSelection(it) }
+                    onToggleSelection = { viewModel.toggleSelection(it) },
+                    onAttachmentClick = handleAttachmentClick,
+                    onAttachmentLongClick = handleAttachmentLongClick
                 )
             }
         }
@@ -310,7 +347,10 @@ private fun PagingMessageList(
     isBatchMode: Boolean = false,
     selectedIds: Set<String> = emptySet(),
     onEnterBatchMode: (String) -> Unit = {},
-    onToggleSelection: (String) -> Unit = {}
+    onToggleSelection: (String) -> Unit = {},
+    // v6: 附件回调（从 HomeScreen 传入）
+    onAttachmentClick: (String, String, String?) -> Unit = { _, _, _ -> },
+    onAttachmentLongClick: (String, String, String?) -> Unit = { _, _, _ -> }
 ) {
     when (pagingItems.loadState.refresh) {
         is LoadState.Loading -> {
@@ -363,7 +403,9 @@ private fun PagingMessageList(
                                 },
                                 onLongClick = { onEnterBatchMode(message.id) },
                                 isBatchMode = isBatchMode,
-                                isSelected = message.id in selectedIds
+                                isSelected = message.id in selectedIds,
+                                onAttachmentClick = onAttachmentClick,
+                                onAttachmentLongClick = onAttachmentLongClick
                             )
                         }
                     }
@@ -409,7 +451,10 @@ private fun FlowListMessageList(
     isBatchMode: Boolean = false,
     selectedIds: Set<String> = emptySet(),
     onEnterBatchMode: (String) -> Unit = {},
-    onToggleSelection: (String) -> Unit = {}
+    onToggleSelection: (String) -> Unit = {},
+    // v6: 附件回调（从 HomeScreen 传入）
+    onAttachmentClick: (String, String, String?) -> Unit = { _, _, _ -> },
+    onAttachmentLongClick: (String, String, String?) -> Unit = { _, _, _ -> }
 ) {
     LazyColumn {
         itemsIndexed(
@@ -443,7 +488,9 @@ private fun FlowListMessageList(
                     },
                     onLongClick = { onEnterBatchMode(message.id) },
                     isBatchMode = isBatchMode,
-                    isSelected = message.id in selectedIds
+                    isSelected = message.id in selectedIds,
+                    onAttachmentClick = onAttachmentClick,
+                    onAttachmentLongClick = onAttachmentLongClick
                 )
             }
         }
@@ -528,4 +575,16 @@ private fun formatSummaryTime(timestamp: Long): String {
         diff < 86400 -> "${diff / 3600}小时前"
         else -> SimpleDateFormat("MM/dd", Locale.getDefault()).format(Date(timestamp * 1000))
     }
+}
+
+/**
+ * Bug3: 把 topic 名简化成 2-3 字短标签，作为"全部 OpenWrt / 全部 Telegram" Tab 显示用
+ * - "Openwrt" → "OpenWrt"
+ * - "telegram" → "TG"
+ */
+private fun getTopicShortName(
+    topics: List<com.flypigs.ntfyapp.data.local.entity.TopicEntity>,
+    topicName: String
+): String {
+    return topics.find { it.name == topicName }?.displayName?.take(6) ?: topicName.take(6)
 }

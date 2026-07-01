@@ -159,8 +159,32 @@ class HomeViewModel @Inject constructor(
     val topics: StateFlow<List<TopicEntity>> = topicRepository.getEnabledTopics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // 动态分类列表
+    // 动态分类列表（全局）
     val dynamicCategories: StateFlow<List<DynamicCategory>> = repository.getDistinctCategories()
+        .map { categories ->
+            categories.map { name ->
+                DEFAULT_CATEGORY_MAP[name] ?: unknownCategory(name)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * v6 新增：按当前选中 topic 过滤的分类列表
+     * - selectedTopic == null → 全部分类（=dynamicCategories）
+     * - selectedTopic != null → 仅该 topic 下的分类
+     *
+     * HomeScreen ScrollableTabRow 用这个替代 dynamicCategories，
+     * 解决"进入 OpenWrt/Telegram 后 Tab 仍显示所有分类"的 Bug3
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val topicCategories: StateFlow<List<DynamicCategory>> = _selectedTopic
+        .flatMapLatest { topic ->
+            if (topic == null) {
+                repository.getDistinctCategories()
+            } else {
+                repository.getDistinctCategoriesByTopic(topic)
+            }
+        }
         .map { categories ->
             categories.map { name ->
                 DEFAULT_CATEGORY_MAP[name] ?: unknownCategory(name)

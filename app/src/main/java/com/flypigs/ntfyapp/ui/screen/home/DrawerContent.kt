@@ -2,14 +2,42 @@ package com.flypigs.ntfyapp.ui.screen.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
+/**
+ * Topic 品牌色 — 暗色模式自动提亮
+ * 不用硬编码白底，按数据源类型给颜色，让 Drawer 一眼能区分来源
+ */
+private object TopicBrandColors {
+    private val isDark = false  // 占位，实际用 isSystemInDarkTheme()
+
+    fun openwrt(dark: Boolean): Pair<Color, Color> =
+        if (dark) Color(0xFF4DD0E1) to Color(0xFF1A2E2E)  // 亮青 + 深青底
+        else Color(0xFF00ADD8) to Color(0xFFE0F7FA)         // OpenWrt 青 + 浅青底
+
+    fun telegram(dark: Boolean): Pair<Color, Color> =
+        if (dark) Color(0xFF42A5F5) to Color(0xFF0D1F33)   // 亮蓝 + 深蓝底
+        else Color(0xFF0088CC) to Color(0xFFE3F2FD)         // Telegram 蓝 + 浅蓝底
+
+    /** 根据 topic name 返回 (foreground, background)；未知返回 null 用默认 */
+    fun forTopic(name: String, dark: Boolean): Pair<Color, Color>? {
+        val lower = name.lowercase()
+        return when {
+            "openwrt" in lower -> openwrt(dark)
+            "telegram" in lower -> telegram(dark)
+            else -> null
+        }
+    }
+}
 
 /**
  * 侧边栏内容 — M3 标准布局
@@ -28,6 +56,7 @@ fun DrawerContent(
     onSelectTopic: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = isSystemInDarkTheme()
     // 最外层 Box：紫色背景延伸到状态栏后面
     Box(
         modifier = modifier
@@ -103,9 +132,27 @@ fun DrawerContent(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // ── Topic 列表 ──
-                topics.forEach { topic ->
+                // 修复 Bug1: 项间 8dp 间距，避免胶囊挨在一起
+                // 修复 Bug2: 按 topic name 自动套品牌色（OpenWrt 青 / Telegram 蓝），暗色模式自动适配
+                topics.forEachIndexed { index, topic ->
                     val isTopicSelected = selectedTopic == topic.name
                     val topicUnread = topicUnreadCounts[topic.name] ?: 0
+                    val brandColors = TopicBrandColors.forTopic(topic.name, isDark)
+                    val iconColor = if (isTopicSelected) {
+                        brandColors?.first ?: MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        brandColors?.first ?: MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    val containerColor = when {
+                        isTopicSelected && brandColors != null -> brandColors.second
+                        isTopicSelected -> MaterialTheme.colorScheme.secondaryContainer
+                        brandColors != null -> brandColors.second.copy(alpha = 0.35f)
+                        else -> Color.Transparent
+                    }
+
+                    if (index > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
 
                     NavigationDrawerItem(
                         label = {
@@ -116,16 +163,33 @@ fun DrawerContent(
                             ) {
                                 Text(
                                     topic.displayName,
-                                    fontWeight = if (isTopicSelected) FontWeight.Bold else FontWeight.Medium
+                                    fontWeight = if (isTopicSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isTopicSelected) {
+                                        brandColors?.first ?: MaterialTheme.colorScheme.onSecondaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
                                 )
                                 if (topicUnread > 0) {
                                     Badge { Text("$topicUnread") }
                                 }
                             }
                         },
-                        icon = { Icon(Icons.Default.Topic, contentDescription = null) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Topic,
+                                contentDescription = null,
+                                tint = iconColor
+                            )
+                        },
                         selected = isTopicSelected,
                         onClick = { onSelectTopic(if (isTopicSelected) null else topic.name) },
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = containerColor,
+                            unselectedContainerColor = containerColor,
+                            selectedIconColor = iconColor,
+                            unselectedIconColor = iconColor
+                        ),
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
                 }
